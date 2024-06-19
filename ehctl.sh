@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+#
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
+cd "${PROJECT_DIR}" || exit 1
+
+. "${PROJECT_DIR}/scripts/utils.sh"
+
+action=${1-}
+args=("${@:2}")
+
+
+function usage() {
+  echo "$(gettext 'EasyHadoop Deployment Management Script')"
+  echo
+  echo "Usage: "
+  echo "  ./ehctl.sh [COMMAND] [ARGS...]"
+  echo "  ./ehctl.sh --help"
+  echo
+  echo "Installation Commands: "
+  echo "  install           $(gettext 'Install EasyHadoop')"
+  echo
+  echo "Uninstall Commands: "
+  echo "  uninstall           $(gettext 'Uninstall EasyHadoop')"
+  echo
+  echo "Management Commands: "
+  echo "  format            $(gettext 'Format  Tools')"
+  echo "  config            $(gettext 'Configuration  Tools')"
+  echo "  start             $(gettext 'Start     EasyHadoop')"
+  echo "  stop              $(gettext 'Stop      EasyHadoop')"
+  echo "  restart           $(gettext 'Restart   EasyHadoop')"
+  echo "  status            $(gettext 'Check     EasyHadoop')"
+  echo
+}
+
+
+function format(){
+
+  # 要执行的命令
+  cmd="${HADOOP_HOME}/bin/hdfs namenode -format"
+  run_as_easyhadoop_or_root "$cmd"
+  
+}
+
+
+function start() {
+  if [ $# -eq 0 ]; then
+    log_info "No service specified. Starting all services by default."
+    stop "all"
+  fi
+
+  local service=$1  # 从函数参数中获取服务名称
+
+  case "$service" in
+    "dfs")
+      log_info "Starting Hadoop Distributed File System (DFS)..."
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/start-dfs.sh"
+      ;;
+    "yarn")
+      log_info "Starting YARN services..."
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/start-yarn.sh"
+      ;;
+    "all")
+      log_info "Starting all Hadoop services..."
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/start-dfs.sh"
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/start-yarn.sh"
+      ;;
+    *)
+      log_info "Usage: start_hadoop {dfs|yarn|all}"
+      return 1
+      ;;
+  esac
+}
+
+# Hadoop停止函数
+function stop() {
+
+  if [ $# -eq 0 ]; then
+    log_info "No service specified. Starting all services by default."
+    stop "all"
+  fi
+
+  local service=$1  # 从函数参数中获取服务名称
+
+  case "$service" in
+    "dfs")
+      log_info "Stopping Hadoop Distributed File System (DFS)..."
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/stop-dfs.sh"
+      ;;
+    "yarn")
+      log_info "Stopping YARN services..."
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/stop-yarn.sh"
+      ;;
+    "all")
+      log_info "Stopping all Hadoop services..."
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/stop-dfs.sh"
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/stop-yarn.sh"
+      ;;
+    *)
+      log_info "Usage: stop_hadoop {dfs|yarn|all}"
+      return 1
+      ;;
+  esac
+}
+
+# Hadoop重启函数
+function restart() {
+
+  if [ $# -eq 0 ]; then
+    log_info "No service specified. ReStarting all services by default."
+    stop "all"
+    sleep 5
+    start "all"
+  fi
+
+  local service=$1  # 从函数参数中获取服务名称
+
+  log_info "Restarting Hadoop services for: $service"
+
+  # 首先停止服务
+  stop "$service"
+
+  # 等待几秒钟，确保服务完全停止
+  sleep 5
+
+  # 然后启动服务
+  start "$service"
+}
+
+# Hadoop状态函数
+function status() {
+
+  if [ $# -eq 0 ]; then
+    log_info  "No service specified.Cheking all services by default."
+    status "all"
+  fi
+
+  # 检查HDFS状态
+  check_dfs_status() {
+      log_info "Checking HDFS status..."
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/bin/hdfs dfsadmin -report | grep 'Live datanodes'"
+      run_as_easyhadoop_or_root "${HADOOP_HOME}/bin/hdfs dfsadmin -report | grep '^Name:'"
+      execute_cluster "jps | grep -v Jps | grep Node | grep -v NodeManager"
+      
+  }
+
+  # 检查YARN状态
+  check_yarn_status() {
+      log_info "Checking YARN status..."
+      execute_cluster "jps | grep -v Jps | grep Manager"
+  }
+
+  check_status() {
+    log_info "checking  status..."
+    execute_cluster "jps | grep -v Jps"
+  }
+
+  local service=$1  # 从函数参数中获取服务名称
+
+  case "$service" in
+        "dfs")
+            check_dfs_status
+            ;;
+        "yarn")
+            check_yarn_status
+            ;;
+        "all")
+            check_status
+            ;;
+        *)
+            echo "Invalid service type: $service_type. Use 'dfs', 'yarn', or 'all'."
+            return 1
+            ;;
+    esac
+}
+
+
+function config() {
+    log_info "Moving Configuration Files"
+    copy_file ${CONFIG_DIR}/hadoop/core-site.xml ${INSTALL_DIR}/hadoop/etc/hadoop/core-site.xml
+    copy_file ${CONFIG_DIR}/hadoop/hdfs-site.xml ${INSTALL_DIR}/hadoop/etc/hadoop/hdfs-site.xml
+    copy_file ${CONFIG_DIR}/hadoop/mapred-site.xml ${INSTALL_DIR}/hadoop/etc/hadoop/mapred-site.xml
+    copy_file ${CONFIG_DIR}/hadoop/yarn-site.xml ${INSTALL_DIR}/hadoop/etc/hadoop/yarn-site.xml
+    copy_file ${CONFIG_DIR}/hadoop/workers ${INSTALL_DIR}/hadoop/etc/hadoop/workers
+
+    # sync_files_to_cluster_with_sshkey \
+    # "${INSTALL_DIR}/hadoop/etc/hadoop/core-site.xml" \
+    # "${INSTALL_DIR}/hadoop/etc/hadoop/hdfs-site.xml" \
+    # "${INSTALL_DIR}/hadoop/etc/hadoop/yarn-site.xml" \
+    # "${INSTALL_DIR}/hadoop/etc/hadoop/workers"
+    sync_files_to_cluster_with_sshkey "${INSTALL_DIR}/hadoop/etc/hadoop/" 
+
+
+}
+
+function main() {
+
+  if [[ "${OS}" != 'CentOS' ]]; then
+    log_error "$(gettext 'Unsupported Operating System Error')"
+    exit 0
+  fi
+
+
+  case "${action}" in
+  install)
+    bash "${SCRIPT_DIR}/install.sh"
+    ;;
+  uninstall)
+   bash "${SCRIPT_DIR}/uninstall.sh"
+    ;;
+  format)
+    format
+    ;;
+  start)
+    start "$args"
+    ;;
+  restart)
+    restart "$args"
+    ;;
+  stop)
+    stop "$args"
+    ;;
+  status)
+    status "$args"
+    ;;
+  config)
+    config
+    ;;
+  version)
+    get_current_version
+    ;;
+  help)
+    usage
+    ;;
+  --help)
+    usage
+    ;;
+  -h)
+    usage
+    ;;
+  *)
+    echo "No such command: ${action}"
+    usage
+    ;;
+  esac
+}
+
+main "$@"
