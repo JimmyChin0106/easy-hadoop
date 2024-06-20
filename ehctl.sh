@@ -24,8 +24,8 @@ function usage() {
   echo "  uninstall           $(gettext 'Uninstall EasyHadoop')"
   echo
   echo "Management Commands: "
-  echo "  format            $(gettext 'Format  Tools')"
-  echo "  config            $(gettext 'Configuration  Tools')"
+  echo "  format            $(gettext 'Format  EasyHadoop')"
+  echo "  config            $(gettext 'Configuration  EasyHadoop')"
   echo "  start             $(gettext 'Start     EasyHadoop')"
   echo "  stop              $(gettext 'Stop      EasyHadoop')"
   echo "  restart           $(gettext 'Restart   EasyHadoop')"
@@ -36,7 +36,6 @@ function usage() {
 
 function format(){
 
-  # 要执行的命令
   cmd="${HADOOP_HOME}/bin/hdfs namenode -format"
   run_as_easyhadoop_or_root "$cmd"
   
@@ -49,7 +48,7 @@ function start() {
     stop "all"
   fi
 
-  local service=$1  # 从函数参数中获取服务名称
+  local service=$1
 
   case "$service" in
     "dfs")
@@ -72,7 +71,6 @@ function start() {
   esac
 }
 
-# Hadoop停止函数
 function stop() {
 
   if [ $# -eq 0 ]; then
@@ -80,7 +78,7 @@ function stop() {
     stop "all"
   fi
 
-  local service=$1  # 从函数参数中获取服务名称
+  local service=$1
 
   case "$service" in
     "dfs")
@@ -103,7 +101,7 @@ function stop() {
   esac
 }
 
-# Hadoop重启函数
+
 function restart() {
 
   if [ $# -eq 0 ]; then
@@ -113,21 +111,18 @@ function restart() {
     start "all"
   fi
 
-  local service=$1  # 从函数参数中获取服务名称
+  local service=$1
 
   log_info "Restarting Hadoop services for: $service"
 
-  # 首先停止服务
   stop "$service"
 
-  # 等待几秒钟，确保服务完全停止
   sleep 5
 
-  # 然后启动服务
   start "$service"
 }
 
-# Hadoop状态函数
+
 function status() {
 
   if [ $# -eq 0 ]; then
@@ -135,7 +130,6 @@ function status() {
     status "all"
   fi
 
-  # 检查HDFS状态
   check_dfs_status() {
       log_info "Checking HDFS status..."
       run_as_easyhadoop_or_root "${HADOOP_HOME}/bin/hdfs dfsadmin -report | grep 'Live datanodes'"
@@ -144,7 +138,6 @@ function status() {
       
   }
 
-  # 检查YARN状态
   check_yarn_status() {
       log_info "Checking YARN status..."
       execute_cluster "jps | grep -v Jps | grep Manager"
@@ -155,7 +148,7 @@ function status() {
     execute_cluster "jps | grep -v Jps"
   }
 
-  local service=$1  # 从函数参数中获取服务名称
+  local service=$1
 
   case "$service" in
         "dfs")
@@ -183,13 +176,7 @@ function config() {
     copy_file ${CONFIG_DIR}/hadoop/yarn-site.xml ${INSTALL_DIR}/hadoop/etc/hadoop/yarn-site.xml
     copy_file ${CONFIG_DIR}/hadoop/workers ${INSTALL_DIR}/hadoop/etc/hadoop/workers
 
-    # sync_files_to_cluster_with_sshkey \
-    # "${INSTALL_DIR}/hadoop/etc/hadoop/core-site.xml" \
-    # "${INSTALL_DIR}/hadoop/etc/hadoop/hdfs-site.xml" \
-    # "${INSTALL_DIR}/hadoop/etc/hadoop/yarn-site.xml" \
-    # "${INSTALL_DIR}/hadoop/etc/hadoop/workers"
     sync_files_to_cluster_with_sshkey "${INSTALL_DIR}/hadoop/etc/hadoop/" 
-
 
 }
 

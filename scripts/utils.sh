@@ -619,8 +619,6 @@ function sync_files_to_cluster_with_sshkey() {
         hosts_array+=("$host_name")
     done < "$hosts_conf_file"
 
-    echo "${hosts_array[@]}"
-
     # 检查files数组是否为空
     if [ ${#files_array[@]} -lt 1 ]; then
         log_error "Error: No files or too few arguments provided."
