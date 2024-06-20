@@ -309,7 +309,7 @@ function sync_file_to_remote() {
     else
         rsync_verbose="-az"     # 否则不添加-v参数
     fi
-    sshpass -p "$remote_pass" rsync "${rsync_verbose}" -e ssh  "$local_file" "$remote_user@$remote_host:$remote_dir"
+    sshpass -p "$remote_pass" rsync "${rsync_verbose}" --stats -e ssh  "$local_file" "$remote_user@$remote_host:$remote_dir"
 
     # 检查rsync命令是否成功执行
     if [ $? -eq 0 ]; then
@@ -369,9 +369,9 @@ function sync_files_to_cluster() {
     fi
 
     # 遍历所有提供的文件
-    for file in $@; do
+    for file in "$@"; do
         # 判断文件是否存在
-        if [ -e $file ]; then
+        if [ -e "$file" ]; then
             sync_file_to_cluster $file
         else
             log_info "$file does not exist!"
@@ -497,7 +497,7 @@ function run_as_easyhadoop_or_root() {
     # 根据当前用户执行不同的操作
     if [ "$current_user" == "root" ]; then
         # 如果当前用户是root，使用bigdata用户执行命令
-        su -s /bin/bash -c "$command_to_run" ${EASYHADOOP_USER}
+        su -s /bin/bash -c "$command_to_run" "${EASYHADOOP_USER}"
     elif [ "$current_user" == "${EASYHADOOP_USER}" ]; then
         # 如果当前用户是bigdata，直接执行命令
         eval "$command_to_run"
@@ -518,8 +518,7 @@ function run_as_easyhadoop_or_root() {
 function sync_files_to_cluster_with_sshkey() {
 
     local hosts_conf_file=$(dirname "$BASE_DIR")/conf/hosts.txt
-    local files_array=("$@") 
-    echo ${files_array[@]}
+    local files_array=("$@")
 
     # 检查配置文件是否存在
     if [ ! -f "$hosts_conf_file" ]; then
@@ -584,7 +583,7 @@ function sync_files_to_cluster_with_sshkey() {
 #    setup_ssh_key_for_user "bigdata"
 function setup_ssh_key_for_user() {
     local username="$1"
-    
+
     # 检查是否以root用户运行
     if [ "$(id -u)" -ne 0 ]; then
         log_error "错误：该函数必须以root用户权限运行。"
@@ -613,10 +612,19 @@ function setup_ssh_key_for_user() {
         fi
 
         # 确保authorized_keys文件存在
-        touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+        if [ ! -f ~/.ssh/authorized_keys ]; then
+            touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+        fi
 
-        # 将公钥追加到authorized_keys文件
-        cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys" "$username"
+        # 检查公钥是否已在authorized_keys文件中
+        if ! grep -qF \"\$(cat ~/.ssh/id_rsa.pub)\" ~/.ssh/authorized_keys; then
+            # 如果公钥不存在，则追加到authorized_keys文件
+            cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+            echo '公钥已添加到authorized_keys文件。'
+        else
+            log '公钥已存在，不重复添加。'
+        fi
+    " "$username"
 
     # 为SELinux设置正确的上下文（如果使用SELinux）
     if [ -e /usr/sbin/restorecon ]; then
@@ -625,6 +633,7 @@ function setup_ssh_key_for_user() {
 
     log_info "为用户 $username 设置SSH免密登录完成。"
 }
+
 
 
 # 函数：copy_ssh_key_to_remote_with_password

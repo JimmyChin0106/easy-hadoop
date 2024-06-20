@@ -166,14 +166,14 @@ main() {
     ((step++))
     log_info "步骤 $step: 开始安装Java..."
     install_java_new
-    
+
     ((step++))
     log_info "步骤 $step: 开始安装Hadoop..."
     install_hadoop_new
 
     ((step++))
     log_info "步骤 $step: 开始分发Hadoop..."
-    sync_files_to_cluster "${INSTALL_DIR}" 
+    sync_files_to_cluster "${INSTALL_DIR}"
 
     ((step++))
     log_info "步骤 $step: 开始配置环境变量..."
