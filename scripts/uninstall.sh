@@ -9,7 +9,7 @@ source "${BASE_DIR}/const.sh"
 step=0
 
 # Check if the given path directory exists
-check_dir_exists() {
+function check_dir_exists() {
   local dir_path="$1"
   if [ ! -d "$dir_path" ]; then
     echo "Error: The directory $dir_path does not exist."
@@ -18,7 +18,7 @@ check_dir_exists() {
 }
 
 # Remove the specified directory
-remove_dir() {
+function remove_dir() {
   local dir_path="$1"
   if [ -d "$dir_path" ]; then
     echo "Removing $dir_path..."
@@ -35,7 +35,7 @@ remove_dir() {
 }
 
 # Remove the specified symlink
-remove_symlink() {
+function remove_symlink() {
   local link_path="$1"
   if [ -L "$link_path" ]; then
     log_info "Removing symlink $link_path..."
@@ -52,7 +52,7 @@ remove_symlink() {
 }
 
 # Function to uninstall Java
-uninstall_java() {
+function uninstall_java() {
   check_dir_exists "${INSTALL_DIR}"
 
   # Remove the Java version directory
@@ -65,7 +65,7 @@ uninstall_java() {
 }
 
 # Function to uninstall Hadoop
-uninstall_hadoop() {
+function uninstall_hadoop() {
   check_dir_exists "${INSTALL_DIR}"
 
   # Remove the Hadoop version directory

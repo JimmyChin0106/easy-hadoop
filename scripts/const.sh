@@ -6,7 +6,7 @@ export PROJECT_VERSION=1.0.0
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 export SCRIPT_DIR="$BASE_DIR"
-PROJECT_DIR=$(dirname "${SCRIPT_DIR}")
+export PROJECT_DIR=$(dirname "${SCRIPT_DIR}")
 
 export CONFIG_DIR="$PROJECT_DIR/conf"
 

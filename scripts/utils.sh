@@ -6,37 +6,21 @@ BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 VERBOSE=false
 
-# 函数：get_script_dir
-#     获取当前脚本所在的目录
-# 参数：
-#     不需要参数
-# 使用示例：
+# Configuration file path is based on the directory where the script is located
+_SERVERS_CONFIG_FILE="${PROJECT_DIR}/conf/servers.txt"
+
+# Function: get_script_dir
+#     Gets the directory where the current script is located
+# Parameters:
+#     No parameters needed
+# Usage example:
 #     get_script_dir
 get_script_dir() {
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     echo "$script_dir"
 }
-# 配置文件路径基于脚本所在目录
-_SERVERS_CONFIG_FILE="$(get_script_dir)/../conf/servers.txt"
 
 
-
-# 定义日志函数
-log() {
-    local message="$1"
-    local level="$2" # 可以是INFO, ERROR等
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local log_entry="$timestamp - ${level^^} - $message"
-
-    # 使用tee同时输出到控制台和日志文件
-    # 使用-a选项来追加到日志文件而不是覆盖
-    echo "$log_entry" | tee -a "$LOG_FILE" > /dev/null
-
-    # 如果是错误日志，同时输出到stderr
-    if [[ "$level" == "ERROR" ]]; then
-        echo "$log_entry" >&2
-    fi
-}
 
 function echo_red() {
   echo -e "\033[1;31m$1\033[0m"
@@ -71,6 +55,23 @@ function log_success() {
   echo_green "$(date '+%Y-%m-%d %H:%M:%S') [SUCCESS] $1"
 }
 
+# Define a logging function
+log() {
+    local message="$1"
+    local level="$2" # Could be INFO, ERROR, etc.
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local log_entry="$timestamp - ${level^^} - $message"
+
+    # Use tee to output to both the console and the log file
+    # Use the -a option to append to the log file instead of overwriting
+    echo "$log_entry" | tee -a "$LOG_FILE" > /dev/null
+
+    # If it's an error log, also output to stderr
+    if [[ "$level" == "ERROR" ]]; then
+        echo "$log_entry" >&2
+    fi
+}
+
 function log_warn() {
   echo_yellow "$(date '+%Y-%m-%d %H:%M:%S') [WARN] $1"
 }
@@ -82,6 +83,9 @@ function log_error() {
 function log_info() {
   echo_green "$(date '+%Y-%m-%d %H:%M:%S') [INFO] >>> $1"
 }
+#function log_info() {
+#  log $1 "[INFO]"
+#}
 
 
 function get_current_version() {
@@ -107,92 +111,89 @@ EOF
   echo -e "\t\t\t EasyHadoop $PROJECT_VERSION : \033[33m$VERSION\033[0m\n"
 }
 
-# 定义函数：提示重启虚拟机
+# Define a function to prompt for a reboot of the virtual machine
 function prompt_reboot() {
     ((step++))
-    log_info "步骤 $step: 重启服务器以应用更改..."
-    read -p "是否现在重启服务器？(y/n): " answer
+    log_info "Step $step: Rebooting the server to apply changes..."
+    read -p "Do you want to reboot the server now? (y/n): " answer
     case ${answer:0:1} in
         y|Y )
-            log_info "开始重启服务器..."
+            log_info "Starting to reboot the server..."
             reboot
             ;;
         * )
-            log_info "服务器重启已取消。"
+            log_info "Server reboot has been canceled."
             ;;
     esac
 }
 
-# 函数：execute_function
-#     执行传入的函数并传递参数
-# 参数：
-#     $1 - 函数名
-# 使用示例：
-#     execution_funtion func_name
+# Function: execute_function
+#     Execute the passed function with arguments
+# Parameters:
+#     $1 - Function name
+# Usage Example:
+#     execute_function func_name "$@"
 function execute_function() {
-    local func="$1"; shift # 取出第一个参数作为函数名，然后移动位置参数
-    # 将剩余的参数作为函数的参数
+    local func="$1"; shift # The first argument is the function name, then shift the positional parameters
+    # Pass the remaining arguments as parameters to the function
     "$func" "$@"
 }
 
-
-# 函数：read_config_and_execution_funtion
-#     读取配置文件并传递参数给函数
-# 参数：
-#     $1 - 函数名
-# 使用示例：
-#     read_config_and_execution_funtion func_name
+# Function: read_config_and_execution_function
+#     Read the configuration file and pass the parameters to the function
+# Parameters:
+#     $1 - Function name
+# Usage Example:
+#     read_config_and_execution_function func_name
 function read_config_and_execution_function() {
-    # 第一个参数是执行的函数名
+    # The first argument is the name of the function to execute
     local FUNC_NAME="$1"
-    shift # 移除第一个参数，剩下的是配置文件的路径
+    shift # Remove the first argument, the rest are the paths to the configuration file
 
-    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}" 
+    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
 
     if [ ! -f "$CONFIG_FILE" ]; then
-        log "错误: 配置文件不存在: $CONFIG_FILE"
+        log "Error: Configuration file does not exist: $CONFIG_FILE"
         return 1
     fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
-        # 假设配置文件的每行格式为：ip host_name user password
+        # Assume the configuration file has a format of: ip host_name user password
         IFS=',' read -r ip host_name user password <<< "$line"
 
-        # 执行传入的函数，并传递解析出的参数
+        # Execute the passed function and pass the parsed parameters
         execute_function "$FUNC_NAME" "$ip" "$host_name" "$user" "$password"
     done < "$CONFIG_FILE"
 }
 
-
-# 函数：generate_hosts_conf_file
-#     读取配置文件并生成HOSTS文件
-# 参数：
-#     无参数
-# 使用示例：
+# Function: generate_hosts_conf_file
+#     Read the configuration file and generate a HOSTS file
+# Parameters:
+#     None
+# Usage Example:
 #     generate_hosts_conf_file
 function generate_hosts_conf_file() {
-    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"   # 配置文件路径作为参数
-    #local hosts_conf_file="$(get_script_dir)/conf/hosts.txt"
+    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"   # Configuration file path as an argument
     local hosts_conf_file=$(dirname "$CONFIG_FILE")/hosts.txt
 
-    # 检查配置文件是否存在
+    # Check if the configuration file exists
     if [[ ! -f "$CONFIG_FILE" ]]; then
         log_error "Configuration file does not exist: $CONFIG_FILE"
         return 1
     fi
 
-    # 创建或清空 Hosts 文件
+    # Create or clear the Hosts file
     log_info "Generating Hosts file..."
-    > $hosts_conf_file  # 清空 Hosts 文件
+    > $hosts_conf_file  # Clear the Hosts file
 
-    #读取配置文件并写入 Hosts 文件
-     while IFS= read -r line || [[ -n "$line" ]]; do
-        # 忽略空行或注释行
+    # Read the configuration file and write to the Hosts file
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Ignore empty lines or comment lines
         [[ "$line" =~ ^#.*$ ]] && continue || [[ -z "$line" ]] && continue
         IFS=',' read -r ip host_name user password <<< "$line"
         echo "$ip $host_name" >> $hosts_conf_file
     done < "$CONFIG_FILE"
-    
+
     log_info "Hosts file generated successfully."
 }
 
@@ -228,90 +229,91 @@ function append_conf_to_hosts() {
     log_info "Append to hosts completed."
 }
 
-# 函数：set_hostname
-#     修改服务器hostname（如果不同）并立即生效
-# 参数：
-#     $1 - 新的hostname
-# 使用示例：
+
+# Function: set_hostname
+#     Change the server's hostname if it's different and take effect immediately
+# Parameters:
+#     $1 - The new hostname
+# Usage Example:
 #     set_hostname "new_hostname_here"
 function set_hostname() {
-    local new_hostname=$1  # 新的hostname作为函数参数
+    local new_hostname=$1  # The new hostname as a function argument
 
-    # 检查是否提供了新的hostname
+    # Check if a new hostname was provided
     if [ -z "$new_hostname" ]; then
-        echo "错误：未提供新的hostname。"
+        echo "Error: No new hostname provided."
         return 1
     fi
 
-    # 获取当前的hostname
+    # Get the current hostname
     local current_hostname=$(hostname)
 
-    # 检查当前hostname是否与新的hostname相同
+    # Check if the current hostname is the same as the new one
     if [ "$current_hostname" == "$new_hostname" ]; then
-        echo "当前hostname已经是 '$new_hostname'，无需修改。"
+        echo "The current hostname is already '$new_hostname', no change needed."
         return 0
     fi
 
-    # 设置新的hostname
+    # Set the new hostname
     hostnamectl set-hostname "$new_hostname"
 
-    # 立即生效
+    # Take effect immediately
     local updated_hostname=$(hostname)
 
-    # 检查hostname是否成功修改
+    # Check if the hostname was successfully changed
     if [ "$updated_hostname" == "$new_hostname" ]; then
-        echo "Hostname已成功修改为：$new_hostname"
+        echo "Hostname has been successfully changed to: $new_hostname"
     else
-        echo "错误：修改Hostname失败。"
+        echo "Error: Failed to change the hostname."
         return 2
     fi
 }
 
-
-# 函数：sync_file_to_remote
-#     使用ssh和rsync同步文件到远程机器
-# 参数：
-#     $1 - 本地文件路径/本地文件夹路径
-#     $2 - 远程主机IP地址
-#     $3 - 远程用户名
-#     $4 - 远程主机的密码
-# 使用示例：
-#     将文件同步到远程机器相同的路径
+# Function: sync_file_to_remote
+#     Synchronize a file to a remote machine using ssh and rsync
+# Parameters:
+#     $1 - Local file path or local folder path
+#     $2 - Remote host IP address
+#     $3 - Remote username
+#     $4 - Remote host password
+# Usage Example:
+#     Synchronize a file to the same path on a remote machine
 #     sync_file_to_remote "/path/to/your/file" "remote_host" "remote_user" "remote_pass"
 function sync_file_to_remote() {
-    local local_file="$1"   # 本地文件路径
-    local remote_host="$2"  # 远程主机IP地址
-    local remote_user="$3"  # 远程用户名
-    local remote_pass="$4"  # 远程主机的密码
-    # 检查文件是否存在
+    local local_file="$1"   # Local file path
+    local remote_host="$2"  # Remote host IP address
+    local remote_user="$3"  # Remote username
+    local remote_pass="$4"  # Remote host password
+
+    # Check if the file exists
     if [ ! -e "$local_file" ]; then
         log_error "Error: Local file '$local_file' does not exist."
         return 1
     fi
 
-    local pdir=$(dirname "$local_file")  # 获取文件所在目录的绝对路径
-    local fname=$(basename "$local_file")  # 获取文件名
-    local remote_dir="$pdir"   # 远程目录路径
+    local pdir=$(dirname "$local_file")  # Get the absolute path of the directory where the file is located
+    local fname=$(basename "$local_file")  # Get the filename
+    local remote_dir="$pdir"   # Remote directory path
 
-    # 使用sshpass和ssh在远程主机上创建目录
+    # Use sshpass and ssh to create a directory on the remote host
     sshpass -p "$remote_pass" ssh -o StrictHostKeyChecking=no -n "$remote_user@$remote_host" "mkdir -p '$remote_dir'"
 
-    # 检查目录创建是否成功
+    # Check if the directory was created successfully
     if [ $? -ne 0 ]; then
         log_error "Error: Failed to create remote directory '$remote_dir' on '$remote_host'."
         return 1
     fi
 
-    # # 使用rsync同步文件到远程主机
-    # 检查verbose变量是否为true
+    # Use rsync to synchronize the file to the remote host
+    # Check if the VERBOSE variable is true
     if [ "$VERBOSE" = true ]; then
-        rsync_verbose="-avz"  # 如果verbose为true，添加-v参数
+        rsync_verbose="-avz"  # If VERBOSE is true, add the -v option
     else
-        rsync_verbose="-az"     # 否则不添加-v参数
+        rsync_verbose="-az"     # Otherwise, do not add the -v option
     fi
-    sshpass -p "$remote_pass" rsync "${rsync_verbose}" --stats -e ssh  "$local_file" "$remote_user@$remote_host:$remote_dir"
+    sshpass -p "$remote_pass" rsync "${rsync_verbose}" --stats -e ssh "$local_file" "$remote_user@$remote_host:$remote_dir"
 
-    # 检查rsync命令是否成功执行
+    # Check if the rsync command was executed successfully
     if [ $? -eq 0 ]; then
         log_info "File '$local_file' successfully synced to '$remote_user@$remote_host:$remote_dir'."
     else
@@ -320,331 +322,251 @@ function sync_file_to_remote() {
     fi
 }
 
-
-# 函数：sync_file_to_cluster
-#     将单个文件分发到集群的所有机器
-# 参数：
-#     $# - 单个文件路径
-# 使用示例：
-#     将文件同步到远程机器相同的路径
+# Function: sync_file_to_cluster
+#     Distributes a single file to all machines in the cluster
+# Parameters:
+#     $1 - Path to a single file
+# Usage Example:
+#     Synchronize a file to the same path on a remote machine
 #     sync_file_to_cluster "/path/to/your/file"
-#     将文件夹同步到远程机器相同的目录
+#     Synchronize a directory to the same directory on a remote machine
 #     sync_file_to_cluster "/path/to/your/directory"
 function sync_file_to_cluster(){
-    local local_file="$1"   # 本地文件路径
-    
-    # local script_dir=$(get_script_dir)
-    # local CONFIG_FILE="${script_dir}/config.txt" # 配置文件路径基于脚本所在目录
-    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}" 
+    local local_file="$1"   # Local file path
+    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
 
     if [ ! -f "$CONFIG_FILE" ]; then
-        log_error "错误: 配置文件不存在: $CONFIG_FILE"
+        log_error "Error: Configuration file does not exist: $CONFIG_FILE"
         return 1
     fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
-        # 假设配置文件的每行格式为：ip host_name user password
+        # Assume the configuration file has a format of: ip host_name user password
         IFS=',' read -r ip host_name user password <<< "$line"
 
-        # 执行传入的函数，并传递解析出的参数
-        log_info "分发文件$local_file到$ip($host_name)"
+        # Execute the passed function and pass the parsed parameters
+        log_info "Distributing file $local_file to $ip ($host_name)"
         sync_file_to_remote "$local_file" "$ip" "$user" "$password"
 
     done < "$CONFIG_FILE"
-
 }
 
-
-# 函数：sync_files_to_cluster
-#     将多个文件分发到集群的所有机器
-# 参数：
-#     $# - 多个文件路径
-# 使用示例：
+# Function: sync_files_to_cluster
+#     Distributes multiple files to all machines in the cluster
+# Parameters:
+#     $@ - Paths to multiple files
+# Usage Example:
 #     sync_files_to_cluster "/path/to/your/file1" "/path/to/your/file2"
 function sync_files_to_cluster() {
-    # 检查至少提供了一个文件作为参数
+    # Check if at least one file was provided as an argument
     if [ $# -lt 1 ]; then
         log_error "Not Enough Arguments!"
         return 1
     fi
 
-    # 遍历所有提供的文件
+    # Iterate over all provided files
     for file in "$@"; do
-        # 判断文件是否存在
+        # Check if the file exists
         if [ -e "$file" ]; then
-            sync_file_to_cluster $file
+            sync_file_to_cluster "$file"
         else
             log_info "$file does not exist!"
         fi
     done
 }
 
-
-# 函数：remote_execute
-# 参数：
-#   $1 - 远程主机IP地址
-#   $2 - 远程用户名
-#   $3 - 密码
-#   $4 - 要执行的命令
-# 使用示例：
-#   remote_execute 'remote_host' 'remote_user' 'remote_pass' 'command'
+# Function: remote_execute
+# Parameters:
+#    $1 - Remote host IP address
+#    $2 - Remote username
+#    $3 - Password
+#    $4 - Command to execute
+# Usage Example:
+#    remote_execute 'remote_host' 'remote_user' 'remote_pass' 'command'
 function execute_remote() {
+    local remote_host="$1" # Remote host IP address
+    local remote_user="$2" # Remote username
+    local remote_pass="$3" # Password
+    local command="$4" # Command to execute
 
-    local remote_host="$1" # 远程主机IP地址
-    local remote_user="$2" # 远程用户名
-    local remote_pass="$3" # 密码
-    local command="$4" # 要执行的命令
-
-    if [ -z "$password" ]; then
+    if [ -z "$remote_pass" ]; then
         log_error "Error: No password provided."
         return 1
     fi
 
-    # 使用sshpass执行远程命令
+    # Use sshpass to execute the remote command
     sshpass -p "$remote_pass" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -n "${remote_user}@${remote_host}" "${command}"
 }
 
 
-# 函数：execute_cluster
-# 参数：
-#   $1 - 要执行的命令
-# 使用示例：
-#   execute_cluster 'command'
-function execute_cluster_all(){
-    local command="$1"   # 执行的命令
-    
-    # local script_dir=$(get_script_dir)
-    # local CONFIG_FILE="${script_dir}/config.txt" # 配置文件路径基于脚本所在目录
-    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}" 
-
-    if [ ! -f "$CONFIG_FILE" ]; then
-        log_error "错误: 配置文件不存在: $CONFIG_FILE"
-        return 1
-    fi
-
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        # 假设配置文件的每行格式为：ip host_name user password
-        IFS=',' read -r ip host_name user password <<< "$line"
-        log_info "==================$user@$ip($host_name)====================="
-        # 执行传入的函数，并传递解析出的参数
-        execute_remote "$ip" "$user" "$password" "$command"
-
-    done < "$CONFIG_FILE"
-
-}
-
-function execute_cluster_include(){
-    local command="$1"   # 执行的命令
-    local servers_list="$2" # 服务器列表，格式为：ip1,ip2,ip3
-
-    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
-
-    if [ ! -f "$CONFIG_FILE" ]; then
-        log_error "错误: 配置文件不存在: $CONFIG_FILE"
-        return 1
-    fi
-
-    # 读取配置文件并筛选出需要执行命令的服务器
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        IFS=',' read -r ip host_name user password <<< "$line"
-        # 检查当前服务器的IP是否在服务器列表中
-        if echo "$servers_list" | grep -Eq "(^|,)$ip(,|$)"; then
-            log_info "==================$user@$ip($host_name)====================="
-            # 执行传入的函数，并传递解析出的参数
-            execute_remote "$ip" "$user" "$password" "$command"
-        fi
-    done < "$CONFIG_FILE"
-}
-
-function execute_cluster_exclude(){
-    local command="$1"   # 执行的命令
-    local servers_list="$2" # 服务器列表，格式为：ip1,ip2,ip3
-
-    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
-
-    if [ ! -f "$CONFIG_FILE" ]; then
-        log_error "错误: 配置文件不存在: $CONFIG_FILE"
-        return 1
-    fi
-
-    # 读取配置文件并筛选出需要执行命令的服务器
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        IFS=',' read -r ip host_name user password <<< "$line"
-        # 检查当前服务器的IP是否在服务器列表中
-        if echo "$servers_list" | grep -Eq "(^|,)$ip(,|$)"; then
-            continue
-        fi
-        log_info "==================$user@$ip($host_name)====================="
-        # 执行传入的函数，并传递解析出的参数
-        execute_remote "$ip" "$user" "$password" "$command"
-    done < "$CONFIG_FILE"
-}
-
+# Function: execute_cluster
+# Executes a command on a cluster of servers based on include or exclude mode.
+# Parameters:
+#   $1 - The command to execute
+#   $2 - "include" or "exclude" mode
+#   $3 - A list of servers, format: ip1,ip2,ip3
 function execute_cluster(){
-    local command="$1"   # 执行的命令
-    local servers_mode="$2" # "include" 或 "exclude" 模式
-    local servers_list="$3" # 服务器列表，格式为：ip1,ip2,ip3
+    local command="$1"   # The command to execute
+    local servers_mode="$2" # "include" or "exclude" mode
+    local servers_list="$3" # Server list, format: ip1,ip2,ip3
 
     local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
 
     if [ ! -f "$CONFIG_FILE" ]; then
-        log_error "错误: 配置文件不存在: $CONFIG_FILE"
+        log_error "Error: Configuration file does not exist: $CONFIG_FILE"
         return 1
     fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         IFS=',' read -r ip host_name user password <<< "$line"
-        local should_execute=1 # 默认为执行
+        local should_execute=1 # Default to execute
 
-        # 根据模式决定是否执行命令
+        # Decide whether to execute the command based on the mode
         if [ "$servers_mode" == "include" ]; then
-            # 如果是include模式，只有在列表中才执行
+            # If it's include mode, execute only if the IP is in the list
             if ! echo "$servers_list" | grep -Eq "(^|,)$ip(,|$)"; then
                 should_execute=0
             fi
         elif [ "$servers_mode" == "exclude" ]; then
-            # 如果是exclude模式，只有在列表中才不执行
+            # If it's exclude mode, do not execute if the IP is in the list
             if echo "$servers_list" | grep -Eq "(^|,)$ip(,|$)"; then
                 should_execute=0
             fi
         fi
 
         if [ "$should_execute" -eq 1 ]; then
-            log_info "==================$user@$ip($host_name)====================="
-            # 执行传入的函数，并传递解析出的参数
+            log_info "Executing command '${command}' on ${user}@${ip} (${host_name})"
+            # Execute the passed function with parsed parameters
             execute_remote "$ip" "$user" "$password" "$command"
         fi
     done < "$CONFIG_FILE"
 }
 
-# 函数：execute_script_remote
-#    远程执行脚本， 脚本作为参数传入
-# 参数：
-#   $1 - 远程主机IP地址
-#   $2 - 远程用户名
-#   $3 - 密码
-#   $4 - 要执行的脚本
-# 使用示例：
-#   remote_execute 'remote_host' 'remote_user' 'remote_pass' 'script_content'
+# Function: execute_script_remote
+#     Remotely execute a script with the script content passed as an argument.
+# Parameters:
+#   $1 - Remote host IP address
+#   $2 - Remote user name
+#   $3 - Password
+#   $4 - Script content to execute
+# Usage Example:
+#   execute_script_remote 'remote_host' 'remote_user' 'remote_pass' 'script_content'
 function execute_script_remote() {
+    local remote_host="$1" # Remote host IP address
+    local remote_user="$2" # Remote user name
+    local remote_pass="$3" # Password
+    local script_content="$4" # Script content to execute
 
-    local remote_host="$1" # 远程主机IP地址
-    local remote_user="$2" # 远程用户名
-    local remote_pass="$3" # 密码
-    local script_content="$4" # 要执行的脚本
-
-    if [ -z "$password" ]; then
+    if [ -z "$remote_pass" ]; then
         echo "Error: No password provided."
         return 1
     fi
 
-    # 使用sshpass执行远程命令
-    # 使用 eval 执行 SSH 命令和脚本
+    # Use sshpass to execute the remote command
+    # Use eval to execute the SSH command and script
     #echo eval $script_content
-    MY_FILE_PATH="./test.txt"
+    local MY_FILE_PATH="./test.txt"
     sshpass -p "$remote_pass" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -n "${remote_user}@${remote_host}" eval "$script_content"
-
 }
 
-# 函数：execute_cluster
-# 参数：
-#   $1 - 要执行的脚本内容
-# 使用示例：
+# Function: execute_script_cluster
+# Executes a script on all machines in the cluster as per the provided configuration.
+# Parameters:
+#   $1 - The script content to execute
+# Usage Example:
 #   execute_script_cluster 'script_content'
 function execute_script_cluster(){
-    local script_content="$1"   # 执行的命令
-    
-    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}" 
+    local script_content="$1"   # The script content to execute
+
+    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
 
     if [ ! -f "$CONFIG_FILE" ]; then
-        log_error "错误: 配置文件不存在: $CONFIG_FILE"
+        log_error "Error: Configuration file does not exist: $CONFIG_FILE"
         return 1
     fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
-        # 假设配置文件的每行格式为：ip host_name user password
+        # Assume the configuration file has a format of: ip host_name user password
         IFS=',' read -r ip host_name user password <<< "$line"
-        log_info "==================$user@$ip($host_name)====================="
-        # 执行传入的函数，并传递解析出的参数
+        log_info "Executing script '${script_content}' on ${user}@${ip} (${host_name})"
+        # Execute the passed function with parsed parameters
         execute_remote "$ip" "$user" "$password" "$script_content"
 
     done < "$CONFIG_FILE"
-
 }
 
 function run_as_easyhadoop_or_root() {
     local command_to_run="$1"
 
-    # 获取当前用户
-    current_user=$(whoami)
+    # Get the current user
+    local current_user=$(whoami)
 
-    # 根据当前用户执行不同的操作
+    # Execute different actions based on the current user
     if [ "$current_user" == "root" ]; then
-        # 如果当前用户是root，使用bigdata用户执行命令
+        # If the current user is root, execute the command as the bigdata user
         su -s /bin/bash -c "$command_to_run" "${EASYHADOOP_USER}"
     elif [ "$current_user" == "${EASYHADOOP_USER}" ]; then
-        # 如果当前用户是bigdata，直接执行命令
+        # If the current user is bigdata, execute the command directly
         eval "$command_to_run"
     else
-        # 如果是其他用户，打印错误信息并退出
+        # If it is another user, print an error message and exit
         echo "Error: You do not have permission to run this command."
         exit 1
     fi
 }
 
 
-# 函数：sync_files_to_cluster_with_sshkey
-#    将文件分发到指定的集群机器
-# 参数：
-#    $# - 多个文件路径
-# 使用示例：
+# Function: sync_files_to_cluster_with_sshkey
+#     Distributes files to specified cluster machines.
+# Parameters:
+#    $# - Multiple file paths
+# Usage Example:
 #    sync_files_to_cluster_with_sshkey file1 file2...
 function sync_files_to_cluster_with_sshkey() {
 
     local hosts_conf_file=$(dirname "$BASE_DIR")/conf/hosts.txt
     local files_array=("$@")
 
-    # 检查配置文件是否存在
+    # Check if the configuration file exists
     if [ ! -f "$hosts_conf_file" ]; then
         log_error "Error: Hosts Configuration file '$hosts_conf_file' does not exist."
         return 1
     fi
 
-    # 读取配置文件中的主机名或IP地址到数组
+    # Read the hostnames or IP addresses from the configuration file into an array
     local hosts_array=()
     while IFS= read -r line || [[ -n "$line" ]]; do
-        # 假设配置文件的每行格式为：ip host_name user password
+        # Assume the configuration file has a format of: ip host_name user password
         IFS=' ' read -r ip host_name <<< "$line"
-        # 执行传入的函数，并传递解析出的参数
+        # Add the hostname to the hosts array
         hosts_array+=("$host_name")
     done < "$hosts_conf_file"
 
-    # 检查files数组是否为空
+    # Check if the files array is not empty
     if [ ${#files_array[@]} -lt 1 ]; then
         log_error "Error: No files or too few arguments provided."
         return 1
     fi
 
-
-    # 遍历所有的主机
+    # Iterate over all hosts
     for host in "${hosts_array[@]}"; do
         log_info "Syncing to host: $host"
-        
-        # 遍历所有的文件
+
+        # Iterate over all files
         for file in "${files_array[@]}"; do
             if [ -e "$file" ]; then
                 log_info "Syncing file: $file to $host"
-                # 使用 rsync 同步文件到远程主机的指定目录
-                local pdir=$(dirname "$file")  # 获取文件所在目录的绝对路径
-                local fname=$(basename "$file")  # 获取文件名
-                local remote_dir="$pdir"   # 远程目录路径
-                cmd="ssh -o StrictHostKeyChecking=no -n $host 'mkdir -p $remote_dir' "
+                # Use rsync to synchronize the file to the remote host's specified directory
+                local pdir=$(dirname "$file")  # Get the absolute path of the directory where the file is located
+                local fname=$(basename "$file")  // Get the filename
+                local remote_dir="$pdir"   // Remote directory path
+                local cmd="ssh -o StrictHostKeyChecking=no -n $host 'mkdir -p $remote_dir' "
                 run_as_easyhadoop_or_root "$cmd"
-                # 检查verbose变量是否为true
+                # Check if the VERBOSE variable is true
                 if [ "$VERBOSE" = true ]; then
-                    cmd="rsync -avz -e ssh $file $host:$remote_dir" # 如果verbose为true，添加-v参数
+                    cmd="rsync -avz -e ssh $file $host:$remote_dir" # If VERBOSE is true, add the -v option
                 else
-                    cmd="rsync -az -e ssh $file $host:$remote_dir"   # 否则不添加-v参数
+                    cmd="rsync -az -e ssh $file $host:$remote_dir"   # Otherwise, do not add the -v option
                 fi
                 run_as_easyhadoop_or_root "$cmd"
             else
@@ -655,172 +577,177 @@ function sync_files_to_cluster_with_sshkey() {
     done
 }
 
-
-# 函数：setup_ssh_key_for_user
-#    为指定用户设置SSH免密登录
-# 参数：
-#    $1 - 要设置用户
-# 使用示例：
-#    调用函数为bigdata用户设置SSH免密登录
+# Function: setup_ssh_key_for_user
+#    Sets up SSH key-based authentication for a specified user.
+# Parameters:
+#    $1 - The user to set up the SSH key for.
+# Usage Example:
+#    Call the function to set up SSH key-based authentication for the 'bigdata' user.
 #    setup_ssh_key_for_user "bigdata"
 function setup_ssh_key_for_user() {
     local username="$1"
 
-    # 检查是否以root用户运行
+    # Check if running as root
     if [ "$(id -u)" -ne 0 ]; then
-        log_error "错误：该函数必须以root用户权限运行。"
+        log_error "Error: This function must be run with root privileges."
         return 1
     fi
 
-    # 检查用户是否存在
+    # Check if the user exists
     if ! id "$username" &>/dev/null; then
-        log_error "错误：用户 $username 不存在。"
+        log_error "Error: User '$username' does not exist."
         return 1
     fi
 
-    # 用户的家目录
+    # User's home directory
     local homedir=$(getent passwd "$username" | cut -d: -f6)
 
-    # 切换到目标用户并生成SSH密钥对
+    # Switch to the target user and generate the SSH key pair
     su -s /bin/bash -c " \
-        # 检查.ssh目录是否存在，不存在则创建
+        # Check if the .ssh directory exists, create if it doesn't
         if [ ! -d ~/.ssh ]; then
             mkdir ~/.ssh && chmod 700 ~/.ssh
         fi
 
-        # 生成SSH密钥对
+        # Generate the SSH key pair
         if [ ! -f ~/.ssh/id_rsa ]; then
             ssh-keygen -t rsa -N '' -f ~/.ssh/id_rsa
         fi
 
-        # 确保authorized_keys文件存在
+        # Ensure the authorized_keys file exists
         if [ ! -f ~/.ssh/authorized_keys ]; then
             touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
         fi
 
-        # 检查公钥是否已在authorized_keys文件中
+        # Check if the public key is already in the authorized_keys file
         if ! grep -qF \"\$(cat ~/.ssh/id_rsa.pub)\" ~/.ssh/authorized_keys; then
-            # 如果公钥不存在，则追加到authorized_keys文件
+            # If the public key does not exist, append it to the authorized_keys file
             cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
-            echo '公钥已添加到authorized_keys文件。'
+            echo 'The public key has been added to the authorized_keys file.'
         else
-            echo '公钥已存在，不重复添加。'
+            echo 'The public key already exists and will not be added again.'
         fi
     " "$username"
 
-    # 为SELinux设置正确的上下文（如果使用SELinux）
+    # Set the correct context for SELinux (if using SELinux)
     if [ -e /usr/sbin/restorecon ]; then
         restorecon -R -v "$homedir/.ssh"
     fi
 
-    log_info "为用户 $username 设置SSH免密登录完成。"
+    log_info "SSH key-based authentication has been set up for user '$username'."
 }
 
-
-
-# 函数：copy_ssh_key_to_remote_with_password
-#    使用密码将本地用户的SSH公钥复制到远程机器上，实现免密登录
-# 参数：
-#    $1 - 本地用户
-#    $2 - 远程服务器IP地址
-#    $3 - 远程服务器用户
-#    $4 - 远程服务器密码
-# 使用示例：
-#     请替换以下参数为实际的用户名、远程主机、远程用户名和远程密码
-#     copy_ssh_key_to_remote_with_password "local_user" "remote_host" "remote_user" "remote_password"
+# Function: copy_ssh_key_to_remote_with_password
+#    Copies the local user's SSH public key to a remote machine using a password for key-based authentication.
+# Parameters:
+#    $1 - Local user
+#    $2 - Remote server IP address
+#    $3 - Remote server user
+#    $4 - Remote server password
+# Usage Example:
+#    Replace the following parameters with the actual username, remote host, remote username, and remote password.
+#    copy_ssh_key_to_remote_with_password "local_user" "remote_host" "remote_user" "remote_password"
 function copy_ssh_key_to_remote_with_password() {
     local local_user="$1"
     local remote_host="$2"
     local remote_user="$3"
     local remote_pass="$4"
 
-    # 检查参数是否齐全
+    # Check if all parameters are provided
     if [ -z "$local_user" ] || [ -z "$remote_host" ] || [ -z "$remote_user" ] || [ -z "$remote_pass" ]; then
-        log_error "错误：缺少必要的参数。"
+        log_error "Error: Missing required parameters."
         return 1
     fi
 
-    # 检查本地用户是否存在
+    # Check if the local user exists
     if ! id "$local_user" &>/dev/null; then
-        log_error "错误：本地用户 $local_user 不存在。"
+        log_error "Error: Local user '$local_user' does not exist."
         return 1
     fi
 
-    # 获取本地用户的公钥路径
+    # Get the path to the local user's public key
     local local_public_key="/home/$local_user/.ssh/id_rsa.pub"
 
-    # 检查公钥文件是否存在
+    # Check if the public key file exists
     if [ ! -f "$local_public_key" ]; then
-        log_error "错误：本地用户 $local_user 的公钥文件不存在。"
+        log_error "Error: The public key file for local user '$local_user' does not exist."
         return 1
     fi
 
-    # 使用sshpass和ssh-copy-id复制公钥到远程机器
+    # Use sshpass and ssh-copy-id to copy the public key to the remote machine
     sshpass -p "$remote_pass" ssh-copy-id -i "$local_public_key" "$remote_user@$remote_host"
 
-    # 检查ssh-copy-id命令是否成功执行
+    # Check if the ssh-copy-id command was executed successfully
     if [ $? -eq 0 ]; then
-        log_info "公钥已成功复制到远程主机 $remote_host 上的用户 $remote_user。"
+        log_info "The public key has been successfully copied to the remote host '$remote_host' for user '$remote_user'."
     else
-        log_erorr "复制公钥到远程主机失败。"
+        log_error "Failed to copy the public key to the remote host."
         return 1
     fi
 }
 
+# Function: copy_file
+# Copies a file from the source to the target location.
+# Parameters:
+#   $1 - The path to the source file.
+#   $2 - The path to the target file where the source will be copied.
+# Usage Example:
+#    copy_file "/path/to/source_file" "/path/to/target_file"
 function copy_file() {
     local source_file=$1
     local target_file=$2
 
-    # 检查源文件是否存在
+    # Check if the source file exists
     if [ ! -f "$source_file" ]; then
         log_error "Error: Source file does not exist - $source_file"
         return 1
     fi
 
-    # 检查目标文件是否存在
+    # Check if the target file exists
     if [ -f "$target_file" ]; then
-        # 如果目标文件存在，使用diff检查文件是否相同
+        # If the target file exists, use diff to check if the files are identical
         if diff -q "$source_file" "$target_file" > /dev/null; then
             log_info "The files are identical, no copy needed."
             return 0
         fi
     fi
 
-    # 执行复制操作
+    # Perform the copy operation
     cp "$source_file" "$target_file"
     if [ $? -eq 0 ]; then
-        log_info "File moved successfully."
+        log_info "File copied successfully."
     else
-        log_error "Error: Failed to move file."
+        log_error "Error: Failed to copy the file."
         return 1
     fi
 }
 
-# 定义一个函数，参数为源文件夹路径和目标目录路径
-# 使用示例
+
+# Define a function with parameters for the source folder path and the target directory path
+# Usage Example:
 # copy_folder "/path/to/source_folder" "/path/to/target_dir"
 copy_folder() {
     local source_folder=$1
     local target_dir=$2
 
-    # 检查源文件夹是否存在
+    # Check if the source folder exists
     if [ ! -d "$source_folder" ]; then
-        echo "错误：源文件夹不存在。"
+        log_error "Error: The source folder does not exist."
         return 1
     fi
 
-    # 检查目标目录是否存在，如果不存在则创建它
+    # Check if the target directory exists, create it if it does not
     if [ ! -d "$target_dir" ]; then
         mkdir -p "$target_dir"
     fi
 
-    # 复制文件夹到目标目录
+    # Copy the folder to the target directory
     cp -a "$source_folder" "$target_dir"
 
     if [ $? -eq 0 ]; then
-        echo "文件夹复制成功。"
+        log_info "Folder copied successfully."
     else
-        echo "文件夹复制失败。"
+        log_info "Failed to copy the folder."
         return 1
     fi
 }
@@ -828,71 +755,68 @@ copy_folder() {
 
 #############################################################################################################################
 #
-#  安装Hadoop和Java用到的工具类
-#  
-#
-#
+# Tool class used for installing Hadoop and Java
 #
 #############################################################################################################################
 
-# 定义检查是否以root用户执行的函数
+# Define a function to check if the script is run as the root user
 check_root_user() {
     if [ "$(id -u)" -ne 0 ]; then
-        echo "该脚本必须以root用户权限运行，请使用sudo命令执行。"
+        echo "This script must be run with root privileges, please use the sudo command to execute."
         exit 1
     fi
 }
 
-# 定义检查文件是否存在的函数
+# Define a function to check if a file exists
 check_file() {
     local file=$1
     if [ ! -f "$file" ]; then
-        log_error "文件不存在：$file"
+        log_error "File does not exist: $file"
         exit 1
     fi
 }
 
-# 定义解压tar.gz文件的函数
+# Define a function to extract .tar.gz files
 extract_software() {
     local tar_gz_file=$1
     local target_dir=$2
     if ! tar -xzvf "$tar_gz_file" -C "$target_dir"; then
-        log_error "解压失败：$tar_gz_file"
+        log_error "Failed to extract: $tar_gz_file"
         exit 1
     fi
 }
 
-# 定义解压并检查的函数
+# Define a function to extract and verify the software
 extract_and_check() {
     local tar_gz_file=$1
     local target_dir=$2
-    local bin_file=$3  # 用于检查解压是否完整的文件，例如 bin/java
+    local bin_file=$3  # The file used to check if the extraction is complete, e.g., bin/java
 
     if [ -d "$target_dir" ]; then
         if [ -f "$target_dir/$bin_file" ]; then
-            log_info "已存在，跳过解压步骤。"
+            log_info "Already exists, skipping extraction step."
         else
-            log_warn "目录存在但看起来不完整，需要重新解压。"
+            log_warn "The directory exists but seems incomplete, need to re-extract."
             rm -rf "$target_dir"
         fi
     fi
 
-    # 检查verbose变量是否为true
+    # Check if the verbose variable is true
     if [ "$verbose" = true ]; then
-        extract_verbose="-xzvf"  # 如果verbose为true，添加-v参数
+        extract_verbose="-xzvf"  # If verbose is true, add the -v option
     else
-        extract_verbose="-xzf"     # 否则不添加-v参数
+        extract_verbose="-xzf"     # Otherwise, do not add the -v option
     fi
     if [ ! -d "$target_dir" ]; then
-        log_info "解压到目录$target_dir"
+        log_info "Extracting to directory $target_dir"
         if ! tar ${extract_verbose} "$tar_gz_file" -C "$(dirname "$target_dir")"; then
-            log_error "解压失败"
+            log_error "Extraction failed"
             exit 1
         fi
     fi
 }
 
-# 定义创建软链接的函数
+# Define a function to create a symbolic link
 create_symlink() {
     local target=$1
     local link_name=$2
@@ -906,59 +830,60 @@ create_symlink() {
     fi
 }
 
-
+# Ensure the file exists
 ensure_file_exists() {
-    local file_path="$1"  # 环境变量文件的路径
+    local file_path="$1"  # Path of the environment variable file
 
-    # 检查文件是否存在
+    # Check if the file exists
     if [ ! -f "$file_path" ]; then
-        # 如果文件不存在，尝试创建文件
+        # If the file does not exist, try to create the file
         if ! touch "$file_path"; then
-            log_error "创建文件 $file_path 失败"
+            log_error "Failed to create file: $file_path"
             return 1
         fi
-        log_info "文件已创建：$file_path"
+        log_info "File created: $file_path"
     else
-        log_info "文件已存在：$file_path"
+        log_info "File already exists: $file_path"
     fi
 }
 
-# 定义写入行到文件的函数
+# Define a function to write a line to a file if it does not exist
 write_line_if_not_exists() {
-    local file="$1"    # 文件路径
-    local line="$2"    # 要写入的行
-    local pattern="$3"  # 用于搜索的模式，通常是行的一部分，以避免完全匹配的问题
+    local file="$1"    # File path
+    local line="$2"    # Line to be written
+    local pattern="$3"  # Pattern used for searching, usually part of the line to avoid full match issues
 
-    # 检查指定的模式是否存在于文件中
+    # Check if the specified pattern exists in the file
     if ! grep -q "$pattern" "$file"; then
-        # 如果模式不存在，写入指定的行
+        # If the pattern does not exist, write the specified line
         echo "$line" >> "$file"
-        log_info "已写入新行到文件：$line"
+        log_info "New line written to file: $line"
     else
-        log_info "文件中已存在该行$line，跳过写入。"
+        log_info "The line $line already exists in the file, skipping write."
     fi
 }
 
+# Source environment variables
 source_env_vars() {
-    local file="$1"  # 环境变量文件的路径
+    local file="$1"  # Path of the environment variable file
 
-    # 尝试激活环境变量文件
+    # Try to activate the environment variable file
     if ! source "$file"; then
-        log_error "环境变量生效失败: $file"
+        log_error "Failed to source environment variables: $file"
         exit 1
     fi
-    log_info "环境变量已生效。"
+    log_info "Environment variables are now sourced."
 }
 
-# 定义检查软件安装是否成功的函数
+# Define a function to check if software installation was successful
 check_installation_success() {
     local software_name=$1
-    local check_command=$2  # 用于检查安装是否成功的命令，例如 "java -version" 或 "hadoop version"
+    local check_command=$2  # Command used to check if the installation was successful, e.g., "java -version" or "hadoop version"
 
     if ! $check_command >/dev/null 2>&1; then
-        log_error "$software_name 安装失败，请检查安装过程。"
+        log_error "Installation of $software_name failed, please check the installation process."
         exit 1
     else
-        log_info "$software_name 安装成功。"
+        log_info "Installation of $software_name was successful."
     fi
 }
