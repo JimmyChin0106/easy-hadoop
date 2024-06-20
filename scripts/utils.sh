@@ -4,7 +4,7 @@ BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 . "${BASE_DIR}/const.sh"
 
-VERBOSE="false"
+VERBOSE=false
 
 # 函数：get_script_dir
 #     获取当前脚本所在的目录
@@ -410,7 +410,7 @@ function execute_remote() {
 #   $1 - 要执行的命令
 # 使用示例：
 #   execute_cluster 'command'
-function execute_cluster(){
+function execute_cluster_all(){
     local command="$1"   # 执行的命令
     
     # local script_dir=$(get_script_dir)
@@ -431,6 +431,90 @@ function execute_cluster(){
 
     done < "$CONFIG_FILE"
 
+}
+
+function execute_cluster_include(){
+    local command="$1"   # 执行的命令
+    local servers_list="$2" # 服务器列表，格式为：ip1,ip2,ip3
+
+    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        log_error "错误: 配置文件不存在: $CONFIG_FILE"
+        return 1
+    fi
+
+    # 读取配置文件并筛选出需要执行命令的服务器
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        IFS=',' read -r ip host_name user password <<< "$line"
+        # 检查当前服务器的IP是否在服务器列表中
+        if echo "$servers_list" | grep -Eq "(^|,)$ip(,|$)"; then
+            log_info "==================$user@$ip($host_name)====================="
+            # 执行传入的函数，并传递解析出的参数
+            execute_remote "$ip" "$user" "$password" "$command"
+        fi
+    done < "$CONFIG_FILE"
+}
+
+function execute_cluster_exclude(){
+    local command="$1"   # 执行的命令
+    local servers_list="$2" # 服务器列表，格式为：ip1,ip2,ip3
+
+    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        log_error "错误: 配置文件不存在: $CONFIG_FILE"
+        return 1
+    fi
+
+    # 读取配置文件并筛选出需要执行命令的服务器
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        IFS=',' read -r ip host_name user password <<< "$line"
+        # 检查当前服务器的IP是否在服务器列表中
+        if echo "$servers_list" | grep -Eq "(^|,)$ip(,|$)"; then
+            continue
+        fi
+        log_info "==================$user@$ip($host_name)====================="
+        # 执行传入的函数，并传递解析出的参数
+        execute_remote "$ip" "$user" "$password" "$command"
+    done < "$CONFIG_FILE"
+}
+
+function execute_cluster(){
+    local command="$1"   # 执行的命令
+    local servers_mode="$2" # "include" 或 "exclude" 模式
+    local servers_list="$3" # 服务器列表，格式为：ip1,ip2,ip3
+
+    local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        log_error "错误: 配置文件不存在: $CONFIG_FILE"
+        return 1
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        IFS=',' read -r ip host_name user password <<< "$line"
+        local should_execute=1 # 默认为执行
+
+        # 根据模式决定是否执行命令
+        if [ "$servers_mode" == "include" ]; then
+            # 如果是include模式，只有在列表中才执行
+            if ! echo "$servers_list" | grep -Eq "(^|,)$ip(,|$)"; then
+                should_execute=0
+            fi
+        elif [ "$servers_mode" == "exclude" ]; then
+            # 如果是exclude模式，只有在列表中才不执行
+            if echo "$servers_list" | grep -Eq "(^|,)$ip(,|$)"; then
+                should_execute=0
+            fi
+        fi
+
+        if [ "$should_execute" -eq 1 ]; then
+            log_info "==================$user@$ip($host_name)====================="
+            # 执行传入的函数，并传递解析出的参数
+            execute_remote "$ip" "$user" "$password" "$command"
+        fi
+    done < "$CONFIG_FILE"
 }
 
 # 函数：execute_script_remote
@@ -713,6 +797,36 @@ function copy_file() {
         return 1
     fi
 }
+
+# 定义一个函数，参数为源文件夹路径和目标目录路径
+# 使用示例
+# copy_folder "/path/to/source_folder" "/path/to/target_dir"
+copy_folder() {
+    local source_folder=$1
+    local target_dir=$2
+
+    # 检查源文件夹是否存在
+    if [ ! -d "$source_folder" ]; then
+        echo "错误：源文件夹不存在。"
+        return 1
+    fi
+
+    # 检查目标目录是否存在，如果不存在则创建它
+    if [ ! -d "$target_dir" ]; then
+        mkdir -p "$target_dir"
+    fi
+
+    # 复制文件夹到目标目录
+    cp -a "$source_folder" "$target_dir"
+
+    if [ $? -eq 0 ]; then
+        echo "文件夹复制成功。"
+    else
+        echo "文件夹复制失败。"
+        return 1
+    fi
+}
+
 
 #############################################################################################################################
 #

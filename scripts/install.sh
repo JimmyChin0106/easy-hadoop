@@ -153,8 +153,13 @@ main() {
 
     ((step++))
     log_info "Step $step: Server uniform settings..."
-    sync_files_to_cluster "${PROJECT_DIR}"
-    execute_cluster "cd ${PROJECT_DIR}/scripts && sh ./env_init.sh"
+    local source_folder="${PROJECT_DIR}"
+    local directory_name=$(basename "${source_folder}")
+    local target_directory="${SOFTWARE_DIR}/tmp"
+    copy_folder $source_folder $target_directory
+    sync_files_to_cluster $target_directory
+    execute_cluster "cd ${target_directory}/${directory_name}/scripts && sh ./env_init.sh"
+    execute_cluster "rm -rf ${target_directory}"
 
     ((step++))
     log_info "Step $step: Setting up SSH keyless login for the server..."
