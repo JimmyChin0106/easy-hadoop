@@ -124,6 +124,14 @@ remove_env_file_path_remote() {
 }
 
 
+remove_ssh_key_path_remote() {
+
+  # 移除 安装目录
+  log_info "正在移除 $SSH_KEY_PATH ..."
+  execute_cluster "rm  -rf $SSH_KEY_PATH/*"
+
+}
+
 main() {
     log_info "步骤 $step: 开始卸载大数据集群..."
     ((step++))
@@ -143,6 +151,10 @@ main() {
     ((step++))
     log_info "步骤 $step: 开始移除环境变量文件..."
     remove_env_file_path_remote
+
+    ((step++))
+    log_info "步骤 $step: 开始移除免密登录文件..."
+    remove_ssh_key_path_remote
 
 }
 
