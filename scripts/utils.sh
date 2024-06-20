@@ -142,7 +142,7 @@ function execute_function() {
 #     $1 - 函数名
 # 使用示例：
 #     read_config_and_execution_funtion func_name
-function read_config_and_execution_funtion() {
+function read_config_and_execution_function() {
     # 第一个参数是执行的函数名
     local FUNC_NAME="$1"
     shift # 移除第一个参数，剩下的是配置文件的路径
@@ -622,7 +622,7 @@ function setup_ssh_key_for_user() {
             cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
             echo '公钥已添加到authorized_keys文件。'
         else
-            log '公钥已存在，不重复添加。'
+            echo '公钥已存在，不重复添加。'
         fi
     " "$username"
 

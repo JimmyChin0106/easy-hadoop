@@ -4,123 +4,122 @@ BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 source "${BASE_DIR}/utils.sh"
 
-# 步骤编号
+# Step counter
 step=0
 
-# 外网网络检查
-# 定义函数：检查网络连接
-check_network() {
+# Internet network check
+# Define function: Check network connection
+function check_network() {
     if ping -c 3 www.baidu.com &> /dev/null; then
-        log_info "互联网连接正常。"
+        log_info "Internet connection is normal."
     else
-        log_info "互联网连接失败，请检查网络设置后重试。"
+        log_info "Internet connection failed, please check your network settings and try again."
         exit 1
     fi
 }
 
-# 内网网络检查
-# 函数：检查单个IP地址的格式并尝试Ping通
-check_and_ping_ip() {
+# Internal network check
+# Define function: Check the format of a single IP address and try to ping it
+function check_and_ping_ip() {
     local ip=$1
     local hostname=$2
 
-    # 检查IP地址格式
+    # Check IP address format
     if ! [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        log_warn "警告：跳过无效的IP地址格式 '$ip'。"
+        log_warn "Warning: Skipping invalid IP address format '$ip'."
         exit 1
     fi
 
-    # Ping测试，-c 1表示发送一个ICMP请求，-w 1设置超时为5秒
-    if ping -c 3  -w 5 "$ip" &> /dev/null; then
-        log_info "成功：IP地址 '$ip' ($hostname) 能Ping通。"
+    # Ping test, -c 3 sends one ICMP request, -w 5 sets timeout to 5 seconds
+    if ping -c 3 -w 5 "$ip" &> /dev/null; then
+        log_info "Success: IP address '$ip' ($hostname) is reachable."
     else
-        log_error "失败：IP地址 '$ip' ($hostname) 不能Ping通。"
+        log_error "Failure: IP address '$ip' ($hostname) is not reachable."
     fi
 }
 
-# 下载必要的工具
-# 定义函数：安装epel-release
-install_epel_release() {
+# Download necessary tools
+# Define function: Install epel-release
+function install_epel_release() {
     if ! yum list installed | grep 'epel-release' > /dev/null; then
-        log_info "epel-release 未安装，开始安装..."
+        log_info "Epel-release is not installed, starting installation..."
         yum install -y epel-release
     else
-        log_info "epel-release 已安装。"
+        log_info "Epel-release is already installed."
     fi
 }
 
-# 定义函数：安装基础工具
-install_base_tools() {
+# Define function: Install base tools
+function install_base_tools() {
     declare -a packages=("net-tools" "vim" "sshpass")
     for package in "${packages[@]}"; do
         if ! yum list installed | grep "$package" > /dev/null; then
-            log_info "$package 未安装，开始安装..."
+            log_info "$package is not installed, starting installation..."
             yum install -y $package
         else
-            log_info "$package 已安装。"
+            log_info "$package is already installed."
         fi
     done
 }
 
 
-# 定义安装Java的函数
-install_java_new() {
-    log_info "检查是否以root用户执行"
+# Define function to install Java
+function install_java() {
+    log_info "Checking if running as root user."
     check_root_user
 
-    log_info "解压JDK到目录${INSTALL_DIR}"
-    log_info "检查目标压缩文件是否存在"
+    log_info "Unzipping JDK to directory ${INSTALL_DIR}"
+    log_info "Checking if the target compressed file exists."
     local jdk_tar_gz=$(ls ${SOFTWARE_DIR}/jdk*.tar.gz 2>/dev/null)
     check_file "$jdk_tar_gz"
-    log_info "解压到指定目录， 解压前检查是否已经解压"
+    log_info "Extracting to the specified directory, checking if it has already been extracted."
     local jdk_target_dir="${INSTALL_DIR}/jdk1.8.0_212"
     local java_bin="bin/java"
     extract_and_check "$jdk_tar_gz" "$jdk_target_dir" "$java_bin"
 
-    log_info "创建JDK连接"
+    log_info "Creating JDK symlink."
     create_symlink "$jdk_target_dir" "${INSTALL_DIR}/jdk"
 
-    log_info "配置JAVA环境变量"
+    log_info "Configuring JAVA environment variables."
     ensure_file_exists "${ENV_FILE_PATH}"
     write_line_if_not_exists "${ENV_FILE_PATH}" "export JAVA_HOME=${INSTALL_DIR}/jdk" "JAVA_HOME"
-    write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:$JAVA_HOME/bin' 'export PATH=$PATH:$JAVA_HOME/bin'
+    write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:$JAVA_HOME/bin' 'export PATH=$JAVA_HOME/bin'
     source_env_vars "${ENV_FILE_PATH}"
 
-    log_info "检查Java是否安装成功"
+    log_info "Checking if Java installation was successful."
     check_installation_success "Java" "java -version"
-    log_info "Java 安装路径为 $JAVA_HOME"
+    log_info "Java installation path is $JAVA_HOME"
 }
 
-# 定义安装Hadoop的函数
-install_hadoop_new() {
-    log_info "检查是否以root用户执行"
+# Define function to install Hadoop
+function install_hadoop() {
+    log_info "Checking if running as root user."
     check_root_user
 
-    log_info "解压Hadoop到目录${INSTALL_DIR}"
-    log_info "检查目标压缩文件是否存在"
+    log_info "Unzipping Hadoop to directory ${INSTALL_DIR}"
+    log_info "Checking if the target compressed file exists."
     local hadoop_tar_gz=$(ls ${SOFTWARE_DIR}/hadoop*.tar.gz | tail -1)
     check_file "$hadoop_tar_gz"
-    log_info "解压到指定目录， 解压前检查是否已经解压"
+    log_info "Extracting to the specified directory, checking if it has already been extracted."
     local hadoop_target_dir="${INSTALL_DIR}/${HADOOP_VERSION}"
     local hadoop_bin="bin/hadoop"
     extract_and_check "$hadoop_tar_gz" "${hadoop_target_dir}" "$hadoop_bin"
 
-    log_info "创建Hadoop连接"
+    log_info "Creating Hadoop symlink."
     create_symlink "$hadoop_target_dir" "${INSTALL_DIR}/hadoop"
 
-    log_info "配置Hadoop环境变量"
+    log_info "Configuring Hadoop environment variables."
     ensure_file_exists "${ENV_FILE_PATH}"
     write_line_if_not_exists "${ENV_FILE_PATH}" "export HADOOP_HOME=${INSTALL_DIR}/hadoop" "HADOOP_HOME"
     write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:$HADOOP_HOME/bin' 'export PATH=$PATH:$HADOOP_HOME/bin'
     write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:$HADOOP_HOME/sbin' 'export PATH=$PATH:$HADOOP_HOME/sbin'
     source_env_vars "${ENV_FILE_PATH}"
 
-
-    log_info "检查Hadoop是否安装成功"
+    log_info "Checking if Hadoop installation was successful."
     check_installation_success "Hadoop" "hadoop version"
-    log_info "Hadoop 安装路径为 $HADOOP_HOME"
+    log_info "Hadoop installation path is $HADOOP_HOME"
 
-    log_info "开始移动Hadoop的配置文件"
+    log_info "Starting to move Hadoop configuration files."
     HADOOP_ETC_PATH="${INSTALL_DIR}/hadoop/etc/hadoop"
     copy_file ${CONFIG_DIR}/hadoop/core-site.xml ${HADOOP_ETC_PATH}/core-site.xml
     copy_file ${CONFIG_DIR}/hadoop/hdfs-site.xml ${HADOOP_ETC_PATH}/hdfs-site.xml
@@ -129,61 +128,59 @@ install_hadoop_new() {
     copy_file ${CONFIG_DIR}/hadoop/workers ${HADOOP_ETC_PATH}/workers
 }
 
-# 确保在调用这些函数之前已经定义了必要的变量，如：
+
+# Make sure that the necessary variables are defined before calling these functions, such as:
 # SOFTWARE_DIR, INSTALL_DIR, ENV_FILE_PATH, HADOOP_VERSION
-
-
 main() {
 
-    log_info "步骤 $step: 开始安装大数据集群..."
+    log_info "Step $step: Starting the installation of the big data cluster..."
     echo_logo
     ((step++))
-    log_info "步骤 $step: 检查互联网连接..."
+    log_info "Step $step: Checking internet connection..."
     check_network
 
     ((step++))
-    log_info "步骤 $step: 检查集群网络连接..."
-    read_config_and_execution_funtion check_and_ping_ip
+    log_info "Step $step: Checking cluster network connection..."
+    read_config_and_execution_function check_and_ping_ip
 
     ((step++))
-    log_info "步骤 $step: 安装epel-release以获取更多软件包..."
+    log_info "Step $step: Installing epel-release to get more packages..."
     install_epel_release
 
     ((step++))
-    log_info "步骤 $step: 安装基础工具..."
+    log_info "Step $step: Installing base tools..."
     install_base_tools
 
     ((step++))
-    log_info "步骤 $step: 服务器统一设置..."
+    log_info "Step $step: Server uniform settings..."
     sync_files_to_cluster "${PROJECT_DIR}"
     execute_cluster "cd ${PROJECT_DIR}/scripts && sh ./env_init.sh"
 
     ((step++))
-    log_info "步骤 $step: 服务器免密登录设置..."
+    log_info "Step $step: Setting up SSH keyless login for the server..."
     setup_ssh_key_for_user "${EASYHADOOP_USER}"
     sync_files_to_cluster "$SSH_KEY_PATH"
 
     ((step++))
-    log_info "步骤 $step: 开始安装Java..."
-    install_java_new
+    log_info "Step $step: Starting to install Java..."
+    install_java
 
     ((step++))
-    log_info "步骤 $step: 开始安装Hadoop..."
-    install_hadoop_new
+    log_info "Step $step: Starting to install Hadoop..."
+    install_hadoop
 
     ((step++))
-    log_info "步骤 $step: 开始分发Hadoop..."
+    log_info "Step $step: Starting to distribute Hadoop..."
     sync_files_to_cluster "${INSTALL_DIR}"
 
     ((step++))
-    log_info "步骤 $step: 开始配置环境变量..."
+    log_info "Step $step: Starting to configure environment variables..."
     sync_files_to_cluster "$ENV_FILE_PATH"
-    log_info "使环境变量生效..."
+    log_info "Activating environment variables..."
     execute_cluster "source $ENV_FILE_PATH"
 
 }
 
 if [[ "$0" == "${BASH_SOURCE[0]}" ]]; then
-  main
+    main
 fi
-
