@@ -755,7 +755,7 @@ copy_folder() {
 
 #############################################################################################################################
 #
-# Tool class used for installing Hadoop and Java
+# Tool function used for installing Hadoop and Java
 #
 #############################################################################################################################
 
@@ -890,13 +890,13 @@ check_installation_success() {
 
 #############################################################################################################################
 #
-# Tool fucntion used for installing zookeeper
+# Tool fucntion used for zookeeper
 #
 #############################################################################################################################
 
 
 # Function: Write the 'myid' to the remote server's zkdata directory via SSH
-write_zookeeper_myid() {
+function write_zookeeper_myid() {
   local server_id=$1
   local server_host=$2
   local zkdata_dir="${ZOOKEEPER_DATA_DIR}" # Assuming the ZOOKEEPER_DATA_DIR environment variable is already set
@@ -929,7 +929,7 @@ write_zookeeper_myid() {
 }
 
 # Function: Read the configuration file and call the write_myid function
-read_config_and_write_zookeeper_myid() {
+function read_config_and_write_zookeeper_myid() {
 
   local config_file="${PROJECT_DIR}/conf/zookeeper/zkCluster.txt"
 
@@ -948,7 +948,7 @@ read_config_and_write_zookeeper_myid() {
 # Usage example:
 # Replace the function parameters with the actual file paths
 # write_to_zoo_cfg "path_to_zkCluster.txt" "path_to_zoo.cfg"
-write_to_zoo_cfg() {
+function write_to_zoo_cfg() {
   local zk_cluster_file="$1"
   local zoo_cfg_file="$2"
 
@@ -981,4 +981,87 @@ write_to_zoo_cfg() {
       log_info "Skipped (already exists in $zoo_cfg_file): $line"
     fi
   done < "$zk_cluster_file"
+}
+
+
+
+# Function to start Zookeeper on multiple specified hosts
+# Example usage:
+# start_zookeeper hadoop102 hadoop103 hadoop104
+function start_zookeeper() {
+  # 使用"$@"来接收所有传入的参数
+  for hostname in "$@"; do
+    log_info "Starting Zookeeper on $hostname "
+    cmd="ssh -o StrictHostKeyChecking=no -n $hostname '${INSTALL_DIR}/zookeeper/bin/zkServer.sh start'"
+    run_as_easyhadoop_or_root "$cmd"
+  done
+}
+
+# Function to stop Zookeeper on multiple specified hosts
+# Example usage:
+# stop_zookeeper hadoop102 hadoop103 hadoop104
+function stop_zookeeper() {
+  for hostname in "$@"; do
+    log_info "Stopping Zookeeper on $hostname"
+    cmd="ssh -o StrictHostKeyChecking=no -n $hostname '${INSTALL_DIR}/zookeeper/bin/zkServer.sh stop'"
+    run_as_easyhadoop_or_root "$cmd"
+  done
+}
+
+# Function to check the status of Zookeeper on multiple specified hosts
+# Example usage:
+# status_zookeeper hadoop102 hadoop103 hadoop104
+function status_zookeeper() {
+  for hostname in "$@"; do
+    log_info " Checking Zookeeper status on $hostname "
+    cmd="ssh -o StrictHostKeyChecking=no -n $hostname '${INSTALL_DIR}/zookeeper/bin/zkServer.sh status'"
+    run_as_easyhadoop_or_root "$cmd"
+  done
+}
+
+
+# Define a function to read hostnames from a Zookeeper cluster configuration file
+function read_hosts_from_zk_cluster_file() {
+  local file_path="${PROJECT_DIR}/conf/zookeeper/zkCluster.txt"  # Path to the Zookeeper cluster configuration file
+  local hosts_map # Associative array to store the mapping of server_id to hostname
+
+  # Check if the file exists
+  if [[ ! -f "$file_path" ]]; then
+    log_error "Error: File does not exist - $file_path"  # Log an error message if the file is not found
+    return 1
+  fi
+
+  # Read the file and populate the associative array
+  while IFS='=' read -r key value; do
+    if [[ ! -z "$key" && ! $key == \#* ]]; then
+      # Extract the hostname
+      local server_id=$(echo "$key" | sed 's/server.\([0-9]*\)/\1/')  # Extract the numeric part after 'server.'
+      local hostname=$(echo "$value" | awk -F ':' '{print $1}')  # Extract the hostname part before ':'
+      hosts_map["$server_id"]="$hostname"  # Populate the associative array with server_id as key and hostname as value
+    fi
+  done < "$file_path"
+
+  # Convert the values of the associative array to a regular array
+  local hosts_array=()
+  for server_id in "${!hosts_map[@]}"; do
+    hosts_array+=( "${hosts_map[$server_id]}" )  # Add the hostname to the regular array
+  done
+
+  # Return the array to the caller
+  echo "${hosts_array[@]}"  # Output the hostnames as a list
+}
+
+function start_zookeeper_read_config() {
+  hosts=( $(read_hosts_from_zk_cluster_file ) )
+  start_zookeeper "${hosts[@]}"
+}
+
+function stop_zookeeper_read_config() {
+  hosts=( $(read_hosts_from_zk_cluster_file ) )
+  stop_zookeeper "${hosts[@]}"
+}
+
+function status_zookeeper_read_config() {
+  hosts=( $(read_hosts_from_zk_cluster_file ) )
+  status_zookeeper "${hosts[@]}"
 }

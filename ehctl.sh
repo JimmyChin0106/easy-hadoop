@@ -51,6 +51,10 @@ function start() {
   local service=$1
 
   case "$service" in
+    "zookeeper")
+      log_info "Starting zookeeper services..."
+      start_zookeeper_read_config
+      ;;
     "dfs")
       log_info "Starting Hadoop Distributed File System (DFS)..."
       run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/start-dfs.sh"
@@ -60,12 +64,13 @@ function start() {
       run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/start-yarn.sh"
       ;;
     "all")
-      log_info "Starting all Hadoop services..."
+      log_info "Starting all EasyHadoop services..."
       run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/start-dfs.sh"
       run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/start-yarn.sh"
+      start_zookeeper_read_config
       ;;
     *)
-      log_info "Usage: start_hadoop {dfs|yarn|all}"
+      log_info "Usage: start_hadoop {zookeeper|dfs|yarn|all}"
       return 1
       ;;
   esac
@@ -81,6 +86,10 @@ function stop() {
   local service=$1
 
   case "$service" in
+    "zookeeper")
+      log_info "Starting zookeeper services..."
+      stop_zookeeper_read_config
+      ;;
     "dfs")
       log_info "Stopping Hadoop Distributed File System (DFS)..."
       run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/stop-dfs.sh"
@@ -90,12 +99,13 @@ function stop() {
       run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/stop-yarn.sh"
       ;;
     "all")
-      log_info "Stopping all Hadoop services..."
+      log_info "Stopping all EasyHadoop services..."
       run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/stop-dfs.sh"
       run_as_easyhadoop_or_root "${HADOOP_HOME}/sbin/stop-yarn.sh"
+      stop_zookeeper_read_config
       ;;
     *)
-      log_info "Usage: stop_hadoop {dfs|yarn|all}"
+      log_info "Usage: stop_hadoop {zookeeper|dfs|yarn|all}"
       return 1
       ;;
   esac
@@ -151,6 +161,9 @@ function status() {
   local service=$1
 
   case "$service" in
+        "zookeeper")
+            status_zookeeper_read_config
+            ;;
         "dfs")
             check_dfs_status
             ;;
@@ -161,7 +174,7 @@ function status() {
             check_status
             ;;
         *)
-            echo "Invalid service type: $service_type. Use 'dfs', 'yarn', or 'all'."
+            echo "Invalid service type: $service_type. Use 'zookeeper', 'dfs', 'yarn', or 'all'."
             return 1
             ;;
     esac
