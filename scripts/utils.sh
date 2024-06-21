@@ -887,3 +887,98 @@ check_installation_success() {
         log_info "Installation of $software_name was successful."
     fi
 }
+
+#############################################################################################################################
+#
+# Tool fucntion used for installing zookeeper
+#
+#############################################################################################################################
+
+
+# Function: Write the 'myid' to the remote server's zkdata directory via SSH
+write_zookeeper_myid() {
+  local server_id=$1
+  local server_host=$2
+  local zkdata_dir="${ZOOKEEPER_DATA_DIR}" # Assuming the ZOOKEEPER_DATA_DIR environment variable is already set
+
+  # Construct SSH command to create zkdata directory (if it does not exist)
+  create_dir_cmd="ssh -o StrictHostKeyChecking=no -n $server_host 'mkdir -p ${zkdata_dir}'"
+
+  # Construct SSH command to write the 'myid'
+  write_file_cmd="ssh -o StrictHostKeyChecking=no -n $server_host 'echo $server_id > ${zkdata_dir}/myid'"
+
+  # Execute SSH command to create directory
+  run_as_easyhadoop_or_root "$create_dir_cmd"
+
+  # Check if the previous command was successful
+  if [ $? -ne 0 ]; then
+    echo "Failed to create directory $zkdata_dir on $server_host"
+    return 1
+  fi
+
+  # Execute SSH command to write the 'myid'
+  run_as_easyhadoop_or_root "$write_file_cmd"
+
+  # Check if the write command was successful
+  if [ $? -eq 0 ]; then
+    log_info "Wrote $server_id to $server_host:$zkdata_dir/myid"
+  else
+    log_info "Failed to write myid to $server_host"
+    return 2
+  fi
+}
+
+# Function: Read the configuration file and call the write_myid function
+read_config_and_write_zookeeper_myid() {
+
+  local config_file="${PROJECT_DIR}/conf/zookeeper/zkCluster.txt"
+
+  while IFS='=' read -r key value; do
+    if [[ -z "$key" || $key == \#* ]]; then
+      continue
+    fi
+    server_id=$(echo "$key" | sed 's/server.\([0-9]*\)/\1/')
+    server_host=$(echo "$value" | awk -F ':' '{print $1}')
+
+    write_zookeeper_myid "$server_id" "$server_host"
+  done < "$config_file"
+}
+
+# Function: Write the content of the zkCluster file to zoo.cfg, skip if the content already exists
+# Usage example:
+# Replace the function parameters with the actual file paths
+# write_to_zoo_cfg "path_to_zkCluster.txt" "path_to_zoo.cfg"
+write_to_zoo_cfg() {
+  local zk_cluster_file="$1"
+  local zoo_cfg_file="$2"
+
+  # Check if the zkCluster file exists
+  if [[ ! -f "$zk_cluster_file" ]]; then
+    log_error "Error: zkCluster file does not exist: $zk_cluster_file"
+    return 1
+  fi
+
+  # Check if the zoo.cfg file exists
+  if [[ ! -f "$zoo_cfg_file" ]]; then
+    log_error "Error: zoo.cfg file does not exist: $zoo_cfg_file"
+    return 1
+  fi
+
+  # Read each line of the zkCluster file
+  while IFS= read -r line; do
+    # Skip empty lines and comment lines
+    if [[ -z "$line" || $line == \#* ]]; then
+      continue
+    fi
+
+    # Check if the line already exists in the zoo.cfg file
+    if ! grep -qF -- "$line" "$zoo_cfg_file"; then
+      # If not, append to the zoo.cfg file
+      echo "$line" >> "$zoo_cfg_file"
+      log_info "Added to $zoo_cfg_file: $line"
+    else
+      # If it exists, skip
+      log_info "Skipped (already exists in $zoo_cfg_file): $line"
+    fi
+  done < "$zk_cluster_file"
+}

@@ -103,6 +103,20 @@ uninstall_java_remote() {
   execute_cluster "rm -rf $JAVA_SYMLINK"
 }
 
+
+# Function to remotely uninstall Zookeeper
+uninstall_zookeeper_remote() {
+  # Remove the zookeeper version directory remotely
+  ZOOKEEPER_VERSION_DIR="${INSTALL_DIR}/${ZOOKEEPER_VERSION}"
+  log_info "Removing $ZOOKEEPER_VERSION_DIR remotely..."
+  execute_cluster "rm -rf $ZOOKEEPER_VERSION_DIR"
+
+  # Remove the zookeeper symlink remotely
+  ZOOKEEPER_SYMLINK="$INSTALL_DIR/zookeeper"
+  log_info "Removing symlink $ZOOKEEPER_SYMLINK remotely..."
+  execute_cluster "rm -rf $ZOOKEEPER_SYMLINK"
+}
+
 # Function to remotely remove the installation directory
 remove_install_dir_remote() {
   # Remove the installation directory remotely
@@ -136,6 +150,10 @@ main() {
     ((step++))
     log_info "Step $step: Starting to uninstall Java..."
     uninstall_java_remote
+
+    ((step++))
+    log_info "Step $step: Starting to uninstall zookeeper..."
+    uninstall_zookeeper_remote
 
     ((step++))
     log_info "Step $step: Starting to remove the installation directory..."

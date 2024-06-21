@@ -13,7 +13,7 @@ function check_network() {
     if ping -c 3 www.baidu.com &> /dev/null; then
         log_info "Internet connection is normal."
     else
-        log_info "Internet connection failed, please check your network settings and try again."
+        log_error "Internet connection failed, please check your network settings and try again."
         exit 1
     fi
 }
@@ -35,6 +35,7 @@ function check_and_ping_ip() {
         log_info "Success: IP address '$ip' ($hostname) is reachable."
     else
         log_error "Failure: IP address '$ip' ($hostname) is not reachable."
+        exit 2
     fi
 }
 
@@ -83,7 +84,7 @@ function install_java() {
     log_info "Configuring JAVA environment variables."
     ensure_file_exists "${ENV_FILE_PATH}"
     write_line_if_not_exists "${ENV_FILE_PATH}" "export JAVA_HOME=${INSTALL_DIR}/jdk" "JAVA_HOME"
-    write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:$JAVA_HOME/bin' 'export PATH=$JAVA_HOME/bin'
+    write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:$JAVA_HOME/bin' 'export PATH=$PATH:$JAVA_HOME/bin'
     source_env_vars "${ENV_FILE_PATH}"
 
     log_info "Checking if Java installation was successful."
@@ -126,6 +127,40 @@ function install_hadoop() {
     copy_file ${CONFIG_DIR}/hadoop/mapred-site.xml ${HADOOP_ETC_PATH}/mapred-site.xml
     copy_file ${CONFIG_DIR}/hadoop/yarn-site.xml ${HADOOP_ETC_PATH}/yarn-site.xml
     copy_file ${CONFIG_DIR}/hadoop/workers ${HADOOP_ETC_PATH}/workers
+}
+
+
+# Define function to install zookeeper
+function install_zookeeper() {
+    log_info "Checking if running as root user."
+    check_root_user
+
+    log_info "Unzipping Zookeeper to directory ${INSTALL_DIR}"
+    log_info "Checking if the target compressed file exists."
+    local zk_tar_gz=$(ls ${SOFTWARE_DIR}/apache-zookeeper*.tar.gz 2>/dev/null)
+    check_file "$zk_tar_gz"
+    log_info "Extracting to the specified directory, checking if it has already been extracted."
+    local zk_target_dir="${INSTALL_DIR}/${ZOOKEEPER_VERSION}"
+    local zk_bin="bin/zkServer.sh"
+    extract_and_check "$zk_tar_gz" "$zk_target_dir" "$zk_bin"
+
+    log_info "Creating Zookeeper symlink."
+    create_symlink "$zk_target_dir" "${INSTALL_DIR}/zookeeper"
+
+    log_info "Configuring Zookeeper environment variables."
+    ensure_file_exists "${ENV_FILE_PATH}"
+    write_line_if_not_exists "${ENV_FILE_PATH}" "export ZOOKEEPER_HOME=${INSTALL_DIR}/zookeeper" "ZOOKEEPER_HOME"
+    write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:ZOOKEEPER_HOME/bin' 'export PATH=$PATH:ZOOKEEPER_HOME/bin'
+    source_env_vars "${ENV_FILE_PATH}"
+
+    log_info "Checking if Zookeeper installation was successful."
+    #check_installation_success "J" "java -version"
+    log_info "Zookeeper installation path is $ZOOKEEPER_HOME"
+
+    log_info "Starting to move zookeeper configuration files."
+    ZOOKEEPER_ETC_PATH="${INSTALL_DIR}/zookeeper/conf"
+    copy_file ${CONFIG_DIR}/zookeeper/zoo.cfg ${ZOOKEEPER_ETC_PATH}/zoo.cfg
+    write_to_zoo_cfg ${CONFIG_DIR}/zookeeper/zkCluster.txt ${ZOOKEEPER_ETC_PATH}/zoo.cfg
 }
 
 
@@ -175,6 +210,10 @@ main() {
     install_hadoop
 
     ((step++))
+    log_info "Step $step: Starting to install Zookeeper..."
+    install_zookeeper
+
+    ((step++))
     log_info "Step $step: Starting to distribute Hadoop..."
     sync_files_to_cluster "${INSTALL_DIR}"
 
@@ -183,6 +222,7 @@ main() {
     sync_files_to_cluster "$ENV_FILE_PATH"
     log_info "Activating environment variables..."
     execute_cluster "source $ENV_FILE_PATH"
+    read_config_and_write_zookeeper_myid
 
 }
 
