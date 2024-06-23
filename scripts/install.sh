@@ -129,6 +129,44 @@ function install_hadoop() {
     copy_file ${CONFIG_DIR}/hadoop/workers ${HADOOP_ETC_PATH}/workers
 }
 
+# Define function to install Hadoop HA(High Availablity)
+function install_hadoop_ha() {
+    log_info "Checking if running as root user."
+    #check_root_user
+
+    log_info "Unzipping Hadoop to directory ${INSTALL_DIR}"
+    log_info "Checking if the target compressed file exists."
+    local hadoop_tar_gz=$(ls ${SOFTWARE_DIR}/hadoop*.tar.gz | tail -1)
+    check_file "$hadoop_tar_gz"
+    log_info "Extracting to the specified directory, checking if it has already been extracted."
+    local hadoop_target_dir="${INSTALL_DIR}/hadoop-ha/${HADOOP_VERSION}"
+    local hadoop_bin="bin/hadoop"
+    create_dir_if_not_exists "${hadoop_target_dir}"
+    extract_and_check "$hadoop_tar_gz" "${hadoop_target_dir}" "$hadoop_bin"
+
+    log_info "Creating Hadoop symlink."
+    create_symlink "$hadoop_target_dir" "${INSTALL_DIR}/hadoop"
+
+    log_info "Configuring Hadoop environment variables."
+    ensure_file_exists "${ENV_FILE_PATH}"
+    write_line_if_not_exists "${ENV_FILE_PATH}" "export HADOOP_HOME=${INSTALL_DIR}/hadoop" "HADOOP_HOME"
+    write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:$HADOOP_HOME/bin' 'export PATH=$PATH:$HADOOP_HOME/bin'
+    write_line_if_not_exists "${ENV_FILE_PATH}" 'export PATH=$PATH:$HADOOP_HOME/sbin' 'export PATH=$PATH:$HADOOP_HOME/sbin'
+    source_env_vars "${ENV_FILE_PATH}"
+
+    log_info "Checking if Hadoop installation was successful."
+    check_installation_success "Hadoop" "hadoop version"
+    log_info "Hadoop installation path is $HADOOP_HOME"
+
+    log_info "Starting to move Hadoop configuration files."
+    HADOOP_ETC_PATH="${INSTALL_DIR}/hadoop/etc/hadoop"
+    copy_file ${CONFIG_DIR}/hadoop-ha/core-site.xml ${HADOOP_ETC_PATH}/core-site.xml
+    copy_file ${CONFIG_DIR}/hadoop-ha/hdfs-site.xml ${HADOOP_ETC_PATH}/hdfs-site.xml
+    #copy_file ${CONFIG_DIR}/hadoop-ha/mapred-site.xml ${HADOOP_ETC_PATH}/mapred-site.xml
+    #copy_file ${CONFIG_DIR}/hadoop-ha/yarn-site.xml ${HADOOP_ETC_PATH}/yarn-site.xml
+    copy_file ${CONFIG_DIR}/hadoop-ha/workers ${HADOOP_ETC_PATH}/workers
+}
+
 
 # Define function to install zookeeper
 function install_zookeeper() {
@@ -207,7 +245,7 @@ main() {
 
     ((step++))
     log_info "Step $step: Starting to install Hadoop..."
-    install_hadoop
+    install_hadoop_ha
 
     ((step++))
     log_info "Step $step: Starting to install Zookeeper..."
@@ -228,4 +266,7 @@ main() {
 
 if [[ "$0" == "${BASH_SOURCE[0]}" ]]; then
     main
+    #install_hadoop_ha
+    #sync_files_to_cluster "/opt/module/hadoop-ha/hadoop-3.1.3/"
+    #sync_files_to_cluster "/opt/module/hadoop-ha/hadoop-3.1.3/etc/hadoop"
 fi

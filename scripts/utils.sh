@@ -786,6 +786,26 @@ extract_software() {
     fi
 }
 
+# Function to create a directory if it does not exist, skip if it already exists
+create_dir_if_not_exists() {
+    local dir_path="$1"  # The directory path passed as an argument
+
+    # Check if the directory does not exist
+    if [ ! -d "$dir_path" ]; then
+        # The directory does not exist, so create it
+        mkdir -p "$dir_path"
+        if [ $? -eq 0 ]; then
+            log_info "Directory created: $dir_path"
+        else
+            log_error "Error: Failed to create directory $dir_path"
+            return 1
+        fi
+    else
+        # The directory already exists, so skip the creation
+        log_info "Directory already exists: $dir_path"
+    fi
+}
+
 # Define a function to extract and verify the software
 extract_and_check() {
     local tar_gz_file=$1
