@@ -95,7 +95,7 @@
      <!-- 指定 zookeeper 集群的地址 -->
 	<property>
 		<name>yarn.resourcemanager.zk-address</name>
-		<value>hadoop103:2181,hadoop103:2181,hadoop104:2181</value>
+		<value>hadoop101:2181,hadoop102:2181,hadoop103:2181</value>
 	</property>
      <!-- 启用自动恢复 -->
 	<property>
@@ -105,7 +105,7 @@
      <!-- 指定 resourcemanager 的状态信息存储在 zookeeper 集群 -->
 	<property>
 		<name>yarn.resourcemanager.store.class</name>
-		<value>org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateSt ore</value>
+		<value>org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore</value>
 	</property>
     <!-- 环境变量的继承 -->
 	<property>
