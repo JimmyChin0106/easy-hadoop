@@ -36,8 +36,20 @@ function usage() {
 
 function format(){
 
-  cmd="${HADOOP_HOME}/bin/hdfs namenode -format"
-  run_as_easyhadoop_or_root "$cmd"
+  local service=$1
+
+  case "$service" in
+    "hadoop")
+      format_hadoop
+    ;;
+    "hadoop-ha")
+      format_hadoop_ha "hadoop101,hadoop102,hadoop103" "hadoop101" "hadoop102,hadoop103"
+    ;;
+    *)
+      log_info "Invalid service type: $service. Use 'hadoop', 'hadoop-ha'."
+      return 1
+    ;;
+  esac
   
 }
 
@@ -209,7 +221,7 @@ function main() {
    bash "${SCRIPT_DIR}/uninstall.sh"
     ;;
   format)
-    format
+    format "$args"
     ;;
   start)
     start "$args"

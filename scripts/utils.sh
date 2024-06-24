@@ -908,6 +908,61 @@ check_installation_success() {
     fi
 }
 
+function format_hadoop(){
+
+   # 检查参数个数
+   if [ "$#" -ne 1 ]; then
+      echo "Usage: $0 namenode"
+      exit 1
+   fi
+   namenode=$1
+   log_info "Formatting NameNode on $namenode"
+   cmd="ssh -o StrictHostKeyChecking=no -n $namenode '${HADOOP_HOME}/bin/hdfs namenode -format'"
+   run_as_easyhadoop_or_root "$cmd"
+}
+
+#  format_ha_hadoop "node1,node2,node3" "node1" "node2,node3"
+function format_hadoop_ha() {
+    # 检查参数个数
+    if [ "$#" -ne 3 ]; then
+      echo "Usage: $0 journalnodes_namespace namenode standbynodes_namespace"
+      exit 1
+    fi
+
+    # 读取参数
+    journalnodes=$1
+    namenode=$2
+    standbynodes=$3
+
+    # 启动JournalNodes
+    IFS=',' read -r -a journalnodes_array <<< "$journalnodes"
+    for node in "${journalnodes_array[@]}"
+    do
+        log_info "Starting JournalNode on $node"
+        cmd="ssh -o StrictHostKeyChecking=no -n $node 'hdfs --daemon start journalnode'"
+        run_as_easyhadoop_or_root "$cmd"
+    done
+
+    # 格式化NameNode
+    log_info "Formatting and starting NameNode on $namenode"
+    cmd="ssh -o StrictHostKeyChecking=no -n $namenode 'yes Y | hdfs zkfc -formatZK'"
+    run_as_easyhadoop_or_root "$cmd"
+    cmd="ssh -o StrictHostKeyChecking=no -n $namenode 'yes Y | hdfs namenode -format'"
+    run_as_easyhadoop_or_root "$cmd"
+    cmd="ssh -o StrictHostKeyChecking=no -n $namenode 'hdfs --daemon start namenode'"
+    run_as_easyhadoop_or_root "$cmd"
+
+    # 同步Standby NameNodes
+    IFS=',' read -r -a standbynodes_array <<< "$standbynodes"
+    for node in "${standbynodes_array[@]}"
+    do
+        log_info "Bootstrapping Standby NameNode on $node"
+        cmd="ssh -o StrictHostKeyChecking=no -n $node 'hdfs namenode -bootstrapStandby'"
+        run_as_easyhadoop_or_root "$cmd"
+    done
+
+}
+
 #############################################################################################################################
 #
 # Tool fucntion used for zookeeper
