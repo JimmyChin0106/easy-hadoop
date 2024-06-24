@@ -908,6 +908,30 @@ check_installation_success() {
     fi
 }
 
+function wait_for_it()
+{
+    local serviceport=$1
+    local service=${serviceport%%:*}
+    local port=${serviceport#*:}
+    local retry_seconds=5
+    local max_try=3
+
+    # 尝试连接到服务
+    for ((i=1; i<=max_try; i++)); do
+      if nc -z $service $port; then
+        log_info "[$i/$max_try] $service:$port is available."
+        return 0
+      else
+        log_warn "[$i/$max_try] $service:$port is not available yet."
+        if [[ $i -eq $max_try ]]; then
+          log_error "After $max_try attempts, $service:$port is still not available."
+          return 1
+        fi
+      fi
+      sleep $retry_seconds
+    done
+}
+
 function format_hadoop(){
 
    # 检查参数个数
@@ -930,9 +954,17 @@ function format_hadoop_ha() {
     fi
 
     # 读取参数
-    journalnodes=$1
-    namenode=$2
-    standbynodes=$3
+    local journalnodes=$1
+    local namenode=$2
+    local standbynodes=$3
+
+    IFS=',' read -r -a journalnodes_array <<< "$journalnodes"
+    for node in "${journalnodes_array[@]}"
+    do
+        log_info "Removing hadoop data files on $node"
+        cmd="ssh -o StrictHostKeyChecking=no -n $node 'rm -rf ${HADOOP_HOME}/data/*'"
+        run_as_easyhadoop_or_root "$cmd"
+    done
 
     # 启动JournalNodes
     IFS=',' read -r -a journalnodes_array <<< "$journalnodes"
@@ -961,7 +993,68 @@ function format_hadoop_ha() {
         run_as_easyhadoop_or_root "$cmd"
     done
 
+    cmd="ssh -o StrictHostKeyChecking=no -n $namenode 'stop-dfs.sh'"
+    run_as_easyhadoop_or_root "$cmd"
 }
+
+
+function format_ha_hadoop_read_config() {
+
+    local journalnodes="hadoop101,hadoop102,hadoop103"
+    local namenode="hadoop101"
+    local standbynodes="hadoop102,hadoop103"
+
+    log_info "Checking status of Zookeeper"
+    wait_for_it "$namenode:2181"
+    result=$?
+
+    if [ $result -eq 0 ]; then
+        log_info "Zookeeper is up and running!"
+        # 检查 Hadoop HA 是否已经格式化
+        check_namenode_formatted $namenode
+        if [ $? -eq 0 ]; then
+            # 如果已经格式化，提示用户是否重新格式化
+            log_info "Hadoop HA is already formatted. Do you want to reformat? (y/n)"
+            read user_input
+            if [[ $user_input == "y" || $user_input == "Y" ]]; then
+                log_info "User confirmed to reformat Hadoop HA"
+                format_hadoop_ha "$journalnodes" "$namenode" "$standbynodes"
+            else
+                log_info "User chose not to reformat Hadoop HA"
+            fi
+        else
+            # 如果没有格式化，继续格式化操作
+            log_info "Hadoop HA is not formatted, proceeding with formatting..."
+            format_hadoop_ha "$journalnodes" "$namenode" "$standbynodes"
+        fi
+    else
+        log_warn "Zookeeper is not available, start it first"
+    fi
+}
+
+
+# 定义一个函数来检查Hadoop NameNode是否已经格式化
+check_namenode_formatted() {
+
+    local namenode=$1
+    # 设置Hadoop安装目录的路径，这里需要根据你的实际安装路径进行替换
+    local hadoop_home=${HADOOP_HOME}
+    # 构建version文件的完整路径
+    local version_file="${hadoop_home}/data/name/current/VERSION"
+
+    cmd="ssh -o StrictHostKeyChecking=no -n $namenode 'test -f ${version_file}'"
+    run_as_easyhadoop_or_root "$cmd"
+    # 检查version文件是否存在
+    if [ $? -eq 0 ]; then
+        log_warn "Hadoop NameNode is formatted. VERSION file exists at: $version_file"
+        return 0
+    else
+        log_info "Hadoop NameNode is not formatted. VERSION file does not exist."
+        return 1
+    fi
+}
+
+
 
 #############################################################################################################################
 #

@@ -43,7 +43,7 @@ function format(){
       format_hadoop
     ;;
     "hadoop-ha")
-      format_hadoop_ha "hadoop101,hadoop102,hadoop103" "hadoop101" "hadoop102,hadoop103"
+      format_ha_hadoop_read_config
     ;;
     *)
       log_info "Invalid service type: $service. Use 'hadoop', 'hadoop-ha'."
