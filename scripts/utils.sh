@@ -1085,3 +1085,68 @@ function status_zookeeper_read_config() {
   hosts=( $(read_hosts_from_zk_cluster_file ) )
   status_zookeeper "${hosts[@]}"
 }
+
+
+#############################################################################################################################
+#
+# Tool fucntion used for config hadoop
+#
+#############################################################################################################################
+
+function create_xml_file_with_header() {
+  local path=$1  # 文件路径作为参数
+
+  # 检查文件是否存在
+  if [[ ! -f "$path" ]]; then
+    # 文件不存在，创建文件并填入XML头和配置结构
+    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > "$path"
+    echo "<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>" >> "$path"
+    echo "" >> "$path"  # 添加一个空行
+    echo "<configuration>" >> "$path"
+    echo "</configuration>" >> "$path"
+    log_info "File created and initialized with XML header at: $path"
+  else
+    # 文件已存在
+    log_warn "File already exists at: $path"
+  fi
+}
+
+#add_property_to_hadoop_xml ../conf/yarn-site.xml dfs.namenode.rpc-bind-host 0.0.0.0
+function add_property_to_hadoop_xml() {
+  local path=$1
+  local name=$2
+  local value=$3
+
+  local entry="<property><name>$name</name><value>${value}</value></property>"
+  local escapedEntry=$(echo $entry | sed 's/\//\\\//g')
+  sed -i "/<\/configuration>/ s/.*/${escapedEntry}\n&/" $path
+}
+
+function remove_property_from_hadoop_xml() {
+  local path=$1  # XML配置文件的路径
+  local name=$2  # 要删除的属性的名称
+
+  # 使用sed命令删除包含<name>标签的行，其中属性名称匹配指定的$name
+  sed -i "/<name>$name<\/name>/d" $path
+}
+
+#configure_hadoop_xmls /etc/hadoop/core-site.xml core CORE_CONF
+function configure_hadoop_xmls() {
+    local path=$1
+    local module=$2
+    local envPrefix=$3
+
+    local var
+    local value
+
+    log_info "Configuring $module"
+    create_xml_file_with_header $path
+    for c in `printenv | perl -sne 'print "$1 " if m/^${envPrefix}_(.+?)=.*/' -- -envPrefix=$envPrefix`; do
+        name=`echo ${c} | perl -pe 's/___/-/g; s/__/@/g; s/_/./g; s/@/_/g;'`
+        var="${envPrefix}_${c}"
+        value=${!var}
+        log_info " - Setting $name=$value"
+        remove_property_from_hadoop_xml $path $name
+        add_property_to_hadoop_xml $path $name "$value"
+    done
+}
