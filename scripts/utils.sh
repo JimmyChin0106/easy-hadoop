@@ -1000,14 +1000,16 @@ function format_hadoop_ha() {
 
 function format_ha_hadoop_read_config() {
 
-    local journalnodes="hadoop101,hadoop102,hadoop103"
-    local namenode="hadoop101"
-    local standbynodes="hadoop102,hadoop103"
+    local config_file="${PROJECT_DIR}/conf/hadoop-ha/haCluster.txt"
+
+    local journalnodes=$(read_config_value "$config_file" "namenodes")
+    local namenode=$(read_config_value "$config_file" "activenamenode")
+    local standbynodes=$(read_config_value "$config_file" "standbynamnodes")
 
     log_info "Checking status of Zookeeper"
     wait_for_it "$namenode:2181"
-    result=$?
 
+    result=$?
     if [ $result -eq 0 ]; then
         log_info "Zookeeper is up and running!"
         # 检查 Hadoop HA 是否已经格式化
@@ -1034,7 +1036,7 @@ function format_ha_hadoop_read_config() {
 
 
 # 定义一个函数来检查Hadoop NameNode是否已经格式化
-check_namenode_formatted() {
+function check_namenode_formatted() {
 
     local namenode=$1
     # 设置Hadoop安装目录的路径，这里需要根据你的实际安装路径进行替换
@@ -1054,6 +1056,18 @@ check_namenode_formatted() {
     fi
 }
 
+# Function to read a configuration file and return the value for a given key
+function read_config_value() {
+    local config_file="$1"
+    local key=$2
+
+    if [ ! -f "$config_file" ]; then
+        log_error "Error: Configuration file does not exist at the specified path: $config_file"
+        return 1
+    fi
+    local value=$(grep "^${key}=" "$config_file" | awk -F '=' '{print $2}' | xargs)
+    echo "${value}"
+}
 
 
 #############################################################################################################################
