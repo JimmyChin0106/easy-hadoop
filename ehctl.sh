@@ -47,7 +47,6 @@ function format(){
     ;;
     *)
       log_info "Invalid service type: $service. Use 'hadoop', 'hadoop-ha'."
-      return 1
     ;;
   esac
   
@@ -56,8 +55,9 @@ function format(){
 
 function start() {
   if [ $# -eq 0 ]; then
-    log_info "No service specified. Starting all services by default."
-    stop "all"
+    log_info  "No service specified. Start all services by default."
+    start "all"
+    exit 0
   fi
 
   local service=$1
@@ -82,18 +82,13 @@ function start() {
       start_zookeeper_read_config
       ;;
     *)
-      log_info "Usage: start_hadoop {zookeeper|dfs|yarn|all}"
-      return 1
+      log_info  "Invalid service type: $service. Usage: start {zookeeper|dfs|yarn|all}"
       ;;
   esac
 }
 
 function stop() {
 
-  if [ $# -eq 0 ]; then
-    log_info "No service specified. Starting all services by default."
-    stop "all"
-  fi
 
   local service=$1
 
@@ -117,21 +112,13 @@ function stop() {
       stop_zookeeper_read_config
       ;;
     *)
-      log_info "Usage: stop_hadoop {zookeeper|dfs|yarn|all}"
-      return 1
+      log_info   "Invalid service type: $service. Usage: stop {zookeeper|dfs|yarn|all}"
       ;;
   esac
 }
 
 
 function restart() {
-
-  if [ $# -eq 0 ]; then
-    log_info "No service specified. ReStarting all services by default."
-    stop "all"
-    sleep 5
-    start "all"
-  fi
 
   local service=$1
 
@@ -148,8 +135,9 @@ function restart() {
 function status() {
 
   if [ $# -eq 0 ]; then
-    log_info  "No service specified.Cheking all services by default."
+    log_info  "No service specified. Cheking all services by default."
     status "all"
+    exit 0
   fi
 
   check_dfs_status() {
@@ -186,8 +174,7 @@ function status() {
             check_status
             ;;
         *)
-            echo "Invalid service type: $service_type. Use 'zookeeper', 'dfs', 'yarn', or 'all'."
-            return 1
+            log_info "Invalid service type: $service. Use 'zookeeper', 'dfs', 'yarn', or 'all'."
             ;;
     esac
 }
@@ -212,7 +199,6 @@ function main() {
     exit 0
   fi
 
-
   case "${action}" in
   install)
     bash "${SCRIPT_DIR}/install.sh"
@@ -221,19 +207,19 @@ function main() {
    bash "${SCRIPT_DIR}/uninstall.sh"
     ;;
   format)
-    format "$args"
+    format "${args[@]}"
     ;;
   start)
-    start "$args"
+    start "${args[@]}"
     ;;
   restart)
-    restart "$args"
+    restart "${args[@]}"
     ;;
   stop)
-    stop "$args"
+    stop "${args[@]}"
     ;;
   status)
-    status "$args"
+    status "${args[@]}"
     ;;
   config)
     config
