@@ -43,6 +43,8 @@ export JAVA_VERSION="jdk1.8.0_212"
 
 export HADOOP_VERSION="hadoop-3.1.3"
 
+export HADOOP_HA=true
+
 export ZOOKEEPER_VERSION="apache-zookeeper-3.5.7-bin"
 
 export ZOOKEEPER_DATA_DIR="${INSTALL_DIR}/${ZOOKEEPER_VERSION}/zkData"

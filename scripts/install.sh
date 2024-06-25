@@ -192,7 +192,6 @@ function install_zookeeper() {
     source_env_vars "${ENV_FILE_PATH}"
 
     log_info "Checking if Zookeeper installation was successful."
-    #check_installation_success "J" "java -version"
     log_info "Zookeeper installation path is $ZOOKEEPER_HOME"
 
     log_info "Starting to move zookeeper configuration files."
@@ -245,7 +244,11 @@ main() {
 
     ((step++))
     log_info "Step $step: Starting to install Hadoop..."
-    install_hadoop_ha
+    if [ "$HADOOP_HA" = true ]; then
+        install_hadoop_ha
+    else
+        install_hadoop
+    fi
 
     ((step++))
     log_info "Step $step: Starting to install Zookeeper..."
@@ -253,13 +256,20 @@ main() {
 
     ((step++))
     log_info "Step $step: Starting to distribute Hadoop..."
-    sync_file_to_cluster "${INSTALL_DIR}" "hadoop-ha/${HADOOP_VERSION}/data,/hadoop-ha/${HADOOP_VERSION}/logs"
+    if [ "$HADOOP_HA" = true ]; then
+        sync_file_to_cluster "${INSTALL_DIR}" "hadoop-ha/${HADOOP_VERSION}/data,/hadoop-ha/${HADOOP_VERSION}/logs"
+    else
+        sync_file_to_cluster "${INSTALL_DIR}" "${HADOOP_VERSION}/data,${HADOOP_VERSION}/logs"
+    fi
+
 
     ((step++))
     log_info "Step $step: Starting to configure environment variables..."
     sync_files_to_cluster "$ENV_FILE_PATH"
     log_info "Activating environment variables..."
     execute_cluster "source $ENV_FILE_PATH"
+
+    execute_cluster "chown -R ${EASYHADOOP_USER}:${EASYHADOOP_USER} ${INSTALL_DIR}"
     read_config_and_write_zookeeper_myid
 
 }
