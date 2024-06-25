@@ -1,0 +1,4 @@
+namenodes=hadoop101,hadoop102,hadoop103
+activenamenode=hadoop101
+standbynamnodes=hadoop102,hadoop103
+datanodes=hadoop101,hadoop102,hadoop103
