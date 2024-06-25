@@ -52,7 +52,7 @@ function install_epel_release() {
 
 # Define function: Install base tools
 function install_base_tools() {
-    declare -a packages=("net-tools" "vim" "sshpass")
+    declare -a packages=("net-tools" "vim" "sshpass" "nc")
     for package in "${packages[@]}"; do
         if ! yum list installed | grep "$package" > /dev/null; then
             log_info "$package is not installed, starting installation..."
@@ -163,7 +163,7 @@ function install_hadoop_ha() {
     copy_file ${CONFIG_DIR}/hadoop-ha/core-site.xml ${HADOOP_ETC_PATH}/core-site.xml
     copy_file ${CONFIG_DIR}/hadoop-ha/hdfs-site.xml ${HADOOP_ETC_PATH}/hdfs-site.xml
     #copy_file ${CONFIG_DIR}/hadoop-ha/mapred-site.xml ${HADOOP_ETC_PATH}/mapred-site.xml
-    #copy_file ${CONFIG_DIR}/hadoop-ha/yarn-site.xml ${HADOOP_ETC_PATH}/yarn-site.xml
+    copy_file ${CONFIG_DIR}/hadoop-ha/yarn-site.xml ${HADOOP_ETC_PATH}/yarn-site.xml
     copy_file ${CONFIG_DIR}/hadoop-ha/workers ${HADOOP_ETC_PATH}/workers
 }
 
@@ -253,7 +253,7 @@ main() {
 
     ((step++))
     log_info "Step $step: Starting to distribute Hadoop..."
-    sync_files_to_cluster "${INSTALL_DIR}"
+    sync_file_to_cluster "${INSTALL_DIR}" "hadoop-ha/${HADOOP_VERSION}/data,/hadoop-ha/${HADOOP_VERSION}/logs"
 
     ((step++))
     log_info "Step $step: Starting to configure environment variables..."
@@ -266,7 +266,4 @@ main() {
 
 if [[ "$0" == "${BASH_SOURCE[0]}" ]]; then
     main
-    #install_hadoop_ha
-    #sync_files_to_cluster "/opt/module/hadoop-ha/hadoop-3.1.3/"
-    #sync_files_to_cluster "/opt/module/hadoop-ha/hadoop-3.1.3/etc/hadoop"
 fi

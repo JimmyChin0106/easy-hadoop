@@ -284,12 +284,14 @@ function sync_file_to_remote() {
     local remote_host="$2"  # Remote host IP address
     local remote_user="$3"  # Remote username
     local remote_pass="$4"  # Remote host password
+    local exclude_file_str="$5" # Exclude patterns as a comma-separated string
 
     # Check if the file exists
     if [ ! -e "$local_file" ]; then
         log_error "Error: Local file '$local_file' does not exist."
         return 1
     fi
+
 
     local pdir=$(dirname "$local_file")  # Get the absolute path of the directory where the file is located
     local fname=$(basename "$local_file")  # Get the filename
@@ -307,15 +309,25 @@ function sync_file_to_remote() {
     # Use rsync to synchronize the file to the remote host
     # Check if the VERBOSE variable is true
     if [ "$VERBOSE" = true ]; then
-        rsync_verbose="-avz"  # If VERBOSE is true, add the -v option
+        rsync_verbose="-avz --stats"  # If VERBOSE is true, add the -v option
     else
         rsync_verbose="-az"     # Otherwise, do not add the -v option
     fi
-    sshpass -p "$remote_pass" rsync "${rsync_verbose}" --stats -e ssh "$local_file" "$remote_user@$remote_host:$remote_dir"
+    local rsync_options="${rsync_verbose} -e ssh"
+
+    # Add exclude patterns to rsync options
+    IFS=',' read -r -a exclude_patterns <<< "$exclude_file_str"  # Split the exclude string into an array
+    for exclude_file in "${exclude_patterns[@]}"; do
+        rsync_options+=" --exclude='$exclude_file'"
+    done
+
+    cmd="sshpass -p "$remote_pass" rsync "$rsync_options" "$local_file" "$remote_user@$remote_host:$remote_dir""
+    eval $cmd
+    #sshpass -p "$remote_pass" rsync "${rsync_verbose}" --stats -e ssh "$local_file" "$remote_user@$remote_host:$remote_dir"
 
     # Check if the rsync command was executed successfully
     if [ $? -eq 0 ]; then
-        log_info "File '$local_file' successfully synced to '$remote_user@$remote_host:$remote_dir'."
+        log_info "File '$local_file' without $exclude_file_str successfully synced to '$remote_user@$remote_host:$remote_dir'."
     else
         log_error "Error: Failed to sync file '$local_file' to '$remote_user@$remote_host:$remote_dir'."
         return 1
@@ -333,6 +345,7 @@ function sync_file_to_remote() {
 #     sync_file_to_cluster "/path/to/your/directory"
 function sync_file_to_cluster(){
     local local_file="$1"   # Local file path
+    local exclude_file  # Path to the exclude file, default to /dev/null if not provided
     local CONFIG_FILE="${_SERVERS_CONFIG_FILE}"
 
     if [ ! -f "$CONFIG_FILE" ]; then
@@ -343,10 +356,10 @@ function sync_file_to_cluster(){
     while IFS= read -r line || [[ -n "$line" ]]; do
         # Assume the configuration file has a format of: ip host_name user password
         IFS=',' read -r ip host_name user password <<< "$line"
-
         # Execute the passed function and pass the parsed parameters
         log_info "Distributing file $local_file to $ip ($host_name)"
-        sync_file_to_remote "$local_file" "$ip" "$user" "$password"
+        exclude_file="${2:-/dev/null}"
+        sync_file_to_remote "$local_file" "$ip" "$user" "$password" "$exclude_file"
 
     done < "$CONFIG_FILE"
 }
