@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+<configuration>
+<property><name>yarn.resourcemanager.address.rm1</name><value>hadoop101:8032</value></property>
+<property><name>yarn.resourcemanager.address.rm3</name><value>hadoop103:8032</value></property>
+<property><name>yarn.resourcemanager.address.rm2</name><value>hadoop102:8032</value></property>
+<property><name>yarn.resourcemanager.webapp.address.rm1</name><value>hadoop101:8088</value></property>
+<property><name>yarn.resourcemanager.webapp.address.rm3</name><value>hadoop103:8088</value></property>
+<property><name>yarn.resourcemanager.webapp.address.rm2</name><value>hadoop102:8088</value></property>
+<property><name>yarn.resourcemanager.hostname.rm1</name><value>hadoop101</value></property>
+<property><name>yarn.resourcemanager.hostname.rm2</name><value>hadoop102</value></property>
+<property><name>yarn.resourcemanager.hostname.rm3</name><value>hadoop103</value></property>
+<property><name>yarn.resourcemanager.cluster_id</name><value>cluster-yarn1</value></property>
+<property><name>yarn.resourcemanager.ha.enabled</name><value>true</value></property>
+<property><name>yarn.resourcemanager.store.class</name><value>org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore</value></property>
+<property><name>yarn.resourcemanager.zk_address</name><value>true</value></property>
+<property><name>yarn.resourcemanager.resource_tracker.address.rm2</name><value>hadoop102:8031</value></property>
+<property><name>yarn.resourcemanager.resource_tracker.address.rm3</name><value>hadoop103:8031</value></property>
+<property><name>yarn.nodemanager.aux_services</name><value>mapreduce_shuffle</value></property>
+<property><name>yarn.resourcemanager.resource_tracker.address.rm1</name><value>hadoop101:8031</value></property>
+<property><name>yarn.nodemanager.env_whitelist</name><value>JAVA_HOME,HADOOP_COMMON_HOME,HADOOP_HDFS_HOME,HADOOP_CONF_DIR,CLASSPATH_PREPEND_DISTCACHE,HADOOP_YARN_HOME,HADOOP_MAPRED_HOME</value></property>
+<property><name>yarn.resourcemanager.recovery.enabled</name><value>true</value></property>
+<property><name>yarn.resourcemanager.scheduler.address.rm3</name><value>hadoop103:8030</value></property>
+<property><name>yarn.resourcemanager.scheduler.address.rm2</name><value>hadoop102:8030</value></property>
+<property><name>yarn.resourcemanager.scheduler.address.rm1</name><value>hadoop101:8030</value></property>
+<property><name>yarn.resourcemanager.ha.rm_ids</name><value>rm1,rm2,rm3</value></property>
+</configuration>
