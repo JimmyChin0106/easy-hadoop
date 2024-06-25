@@ -47,12 +47,39 @@ function generate_hadoop_ha_hdfs_site() {
 
 function generate_hadoop_ha_yarn_site() {
 
-  export YARN_CONF_yarn_log___aggregation___enable=true
-  export YARN_CONF_yarn_resourcemanager_recovery_enabled=true
-  export YARN_CONF_yarn_resourcemanager_store_class=org.apache.hadoop.yarn.server.resourcemanager.recovery.FileSystemRMStateStore
-  export YARN_CONF_yarn_resourcemanager_fs_state___store_uri=/rmstate
+  export HA_YARN_CONF_yarn_nodemanager_aux__services=mapreduce_shuffle
+  export HA_YARN_CONF_yarn_resourcemanager_ha_enabled=true
+  export HA_YARN_CONF_yarn_resourcemanager_cluster__id=cluster-yarn1
 
-  configure_hadoop_xmls "../conf/hadoop-ha/temp/yarn-site.xml" yarn YARN_CONF
+  export HA_YARN_CONF_yarn_resourcemanager_ha_rm__ids=rm1,rm2,rm3
+
+  export HA_YARN_CONF_yarn_resourcemanager_hostname_rm1=hadoop101
+  export HA_YARN_CONF_yarn_resourcemanager_webapp_address_rm1=hadoop101:8088
+  export HA_YARN_CONF_yarn_resourcemanager_address_rm1=hadoop101:8032
+  export HA_YARN_CONF_yarn_resourcemanager_scheduler_address_rm1=hadoop101:8030
+  export HA_YARN_CONF_yarn_resourcemanager_resource__tracker_address_rm1=hadoop101:8031
+
+  export HA_YARN_CONF_yarn_resourcemanager_hostname_rm2=hadoop102
+  export HA_YARN_CONF_yarn_resourcemanager_webapp_address_rm2=hadoop102:8088
+  export HA_YARN_CONF_yarn_resourcemanager_address_rm2=hadoop102:8032
+  export HA_YARN_CONF_yarn_resourcemanager_scheduler_address_rm2=hadoop102:8030
+  export HA_YARN_CONF_yarn_resourcemanager_resource__tracker_address_rm2=hadoop102:8031
+
+  export HA_YARN_CONF_yarn_resourcemanager_hostname_rm3=hadoop103
+  export HA_YARN_CONF_yarn_resourcemanager_webapp_address_rm3=hadoop103:8088
+  export HA_YARN_CONF_yarn_resourcemanager_address_rm3=hadoop103:8032
+  export HA_YARN_CONF_yarn_resourcemanager_scheduler_address_rm3=hadoop103:8030
+  export HA_YARN_CONF_yarn_resourcemanager_resource__tracker_address_rm3=hadoop103:8031
+
+  export HA_YARN_CONF_yarn_resourcemanager_zk__address=true
+  export HA_YARN_CONF_yarn_resourcemanager_recovery_enabled=true
+  export HA_YARN_CONF_yarn_resourcemanager_store_class=org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore
+
+  export HA_YARN_CONF_yarn_nodemanager_env__whitelist=JAVA_HOME,HADOOP_COMMON_HOME,HADOOP_HDFS_HOME,HADOOP_CONF_DIR,CLASSPATH_PREPEND_DISTCACHE,HADOOP_YARN_HOME,HADOOP_MAPRED_HOME
+
+
+
+  configure_hadoop_xmls "../conf/hadoop-ha/temp/yarn-site.xml" yarn HA_YARN_CONF
 
 }
 
@@ -61,6 +88,7 @@ function generate_hadoop_ha_yarn_site() {
 function main() {
     generate_hadoop_ha_core_site
     generate_hadoop_ha_hdfs_site
+    generate_hadoop_ha_yarn_site
 }
 
 if [[ "$0" == "${BASH_SOURCE[0]}" ]]; then
